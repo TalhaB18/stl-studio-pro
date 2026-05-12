@@ -18,23 +18,24 @@ export const Route = createFileRoute("/upgrade")({
 
 function Upgrade() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
+  const { session, profile, reloadProfile } = useAuth();
   const [confirmed, setConfirmed] = useState(false);
 
-  useEffect(() => {
-    setUser(getSession());
-  }, []);
-
-  const onUpgrade = () => {
-    if (!user) {
+  const onUpgrade = async () => {
+    if (!session) {
       router.navigate({ to: "/login" });
       return;
     }
-    const u = upgradeCurrent();
-    setUser(u);
-    setConfirmed(true);
-    window.dispatchEvent(new Event("mm-auth-change"));
+    try {
+      await upgradeCurrent();
+      await reloadProfile();
+      setConfirmed(true);
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  const user = profile ? { plan: profile.plan } : null;
 
   return (
     <div className="min-h-screen">
