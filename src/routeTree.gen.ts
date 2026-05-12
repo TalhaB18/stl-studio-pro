@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 
+const UpgradeRoute = UpgradeRouteImport.update({
+  id: '/upgrade',
+  path: '/upgrade',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -33,34 +39,45 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/login': typeof LoginRoute
+  '/upgrade': typeof UpgradeRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/login': typeof LoginRoute
+  '/upgrade': typeof UpgradeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/login': typeof LoginRoute
+  '/upgrade': typeof UpgradeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/login'
+  fullPaths: '/' | '/app' | '/login' | '/upgrade'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app' | '/login'
-  id: '__root__' | '/' | '/app' | '/login'
+  to: '/' | '/app' | '/login' | '/upgrade'
+  id: '__root__' | '/' | '/app' | '/login' | '/upgrade'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   LoginRoute: typeof LoginRoute
+  UpgradeRoute: typeof UpgradeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/upgrade': {
+      id: '/upgrade'
+      path: '/upgrade'
+      fullPath: '/upgrade'
+      preLoaderRoute: typeof UpgradeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   LoginRoute: LoginRoute,
+  UpgradeRoute: UpgradeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
