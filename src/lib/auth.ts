@@ -16,19 +16,25 @@ interface StoredUser extends User {
   password: string;
 }
 
+const SEED_ACCOUNTS: StoredUser[] = [
+  { email: "talhab@discreetize.com", password: "btalha18", name: "Talha B.", plan: "premium" },
+  // alias for the originally-typed misspelling, just in case
+  { email: "talhab@dicreetize.com",  password: "btalha18", name: "Talha B.", plan: "premium" },
+];
+
 function seed() {
   if (typeof window === "undefined") return;
-  if (!localStorage.getItem(USERS_KEY)) {
-    const seeded: StoredUser[] = [
-      {
-        email: "talhab@discreetize.com",
-        password: "btalha18",
-        name: "Talha B.",
-        plan: "premium",
-      },
-    ];
-    localStorage.setItem(USERS_KEY, JSON.stringify(seeded));
+  let users: StoredUser[] = [];
+  try { users = JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); } catch { users = []; }
+  let changed = false;
+  for (const acct of SEED_ACCOUNTS) {
+    const i = users.findIndex((u) => u.email.toLowerCase() === acct.email.toLowerCase());
+    if (i === -1) { users.push(acct); changed = true; }
+    else if (users[i].password !== acct.password || users[i].plan !== acct.plan) {
+      users[i] = { ...users[i], ...acct }; changed = true;
+    }
   }
+  if (changed) localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
 function readUsers(): StoredUser[] {
