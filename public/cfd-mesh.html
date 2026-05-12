@@ -1,0 +1,2776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CFD Mesh</title>
+<style>
+/* ─── Reset & Root ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #07090e;
+  --panel:       #0d1219;
+  --panel2:      #111820;
+  --border:      #1c2433;
+  --border2:     #1e2a3a;
+  --accent:      #3b82f6;
+  --accent-glow: rgba(59,130,246,.18);
+  --accent2:     #10b981;
+  --neon:        #00ff88;
+  --warn:        #f59e0b;
+  --danger:      #ef4444;
+  --text:        #e2e8f0;
+  --muted:       #64748b;
+  --muted2:      #475569;
+  --topbar-h:    52px;
+  --ltb-w:       52px;
+  --rp-w:        280px;
+  --sb-h:        30px;
+}
+body.light {
+  --bg:          #f0f4f8;
+  --panel:       #ffffff;
+  --panel2:      #f8fafc;
+  --border:      #e2e8f0;
+  --border2:     #cbd5e1;
+  --accent:      #2563eb;
+  --accent-glow: rgba(37,99,235,.12);
+  --accent2:     #059669;
+  --neon:        #059669;
+  --warn:        #d97706;
+  --danger:      #dc2626;
+  --text:        #1e293b;
+  --muted:       #64748b;
+  --muted2:      #94a3b8;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ─── Scrollbars ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); }
+
+/* ─── Viewport ──────────────────────────────────────────────── */
+#vp {
+  position: fixed;
+  inset: var(--topbar-h) 0 var(--sb-h) var(--ltb-w);
+  overflow: hidden;
+  background: var(--bg);
+  transition: right .25s cubic-bezier(.4,0,.2,1);
+}
+body.rp-open #vp { right: var(--rp-w); }
+
+canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  outline: none;
+}
+
+/* ─── Welcome overlay ──────────────────────────────────────── */
+#wel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+  z-index: 5;
+}
+#wel .ic {
+  font-size: 56px;
+  opacity: .12;
+  filter: grayscale(1);
+}
+#wel .wel-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  opacity: .18;
+  letter-spacing: -.3px;
+}
+#wel .wel-sub {
+  font-size: 12px;
+  color: var(--muted);
+  opacity: .45;
+}
+#wel.gone { display: none; }
+
+/* ─── Loading overlay ──────────────────────────────────────── */
+#ld {
+  position: absolute;
+  inset: 0;
+  background: rgba(7,9,14,.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 30;
+}
+#ld.on { display: flex; }
+.spin {
+  width: 38px; height: 38px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#lm { font-size: 13px; color: var(--text); font-weight: 500; }
+.lt { width: 220px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+#lf { height: 100%; background: linear-gradient(90deg, var(--accent), #60a5fa); border-radius: 1px; transition: width .4s; width: 0; }
+#ls { font-size: 10px; color: var(--muted); }
+
+/* ─── HUD ──────────────────────────────────────────────────── */
+#hud {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  background: rgba(13,18,25,.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 218px;
+  display: none;
+  z-index: 10;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4), 0 0 0 .5px rgba(255,255,255,.04);
+}
+#hud.on { display: block; }
+.hd-t { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted2); margin-bottom: 8px; }
+.hd-g { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin-bottom: 8px; }
+.hd-v { font-size: 14px; font-weight: 800; color: var(--accent2); font-variant-numeric: tabular-nums; }
+.hd-l { font-size: 8px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted2); }
+.hd-d { height: 1px; background: var(--border2); margin: 7px 0; }
+.hd-r { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 3px; }
+.hd-rl { color: var(--muted); }
+.hd-rv { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ─── Selection overlay ────────────────────────────────────── */
+#sel {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  background: rgba(13,18,25,.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(0,255,136,.35);
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-width: 218px;
+  display: none;
+  z-index: 11;
+  box-shadow: 0 0 20px rgba(0,255,136,.08), 0 4px 20px rgba(0,0,0,.4);
+}
+#sel.on { display: block; }
+.sel-t {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.2px; color: var(--neon); margin-bottom: 7px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sdot {
+  width: 7px; height: 7px;
+  background: var(--neon);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--neon);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { box-shadow: 0 0 6px var(--neon); }
+  50% { box-shadow: 0 0 14px var(--neon); }
+}
+.sel-r { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 3px; }
+.sel-rl { color: var(--muted); }
+.sel-rv { color: var(--neon); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ─── Viewport controls (top-right of viewport) ────────────── */
+#vc {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 10;
+}
+.vb {
+  width: 32px; height: 32px;
+  background: rgba(13,18,25,.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, color .15s, background .15s, box-shadow .15s;
+}
+.vb:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+.vb.act { border-color: var(--accent2); color: var(--accent2); background: rgba(16,185,129,.1); }
+
+/* ─── Toast ─────────────────────────────────────────────────── */
+.toast {
+  position: absolute;
+  bottom: 18px; right: 18px;
+  max-width: 300px;
+  background: rgba(13,18,25,.96);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--danger);
+  color: var(--text);
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  display: none;
+  z-index: 40;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5), 0 0 0 .5px rgba(255,255,255,.04);
+  animation: toast-in .2s ease;
+}
+.toast.on { display: block; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ─── Top Header Bar ────────────────────────────────────────── */
+#topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  background: rgba(7,9,14,.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  z-index: 100;
+  padding: 0 12px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.03);
+}
+.tb-left  { display: flex; align-items: center; gap: 10px; }
+.tb-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.tb-right  { display: flex; align-items: center; gap: 8px; }
+
+.logo {
+  display: flex; align-items: center; gap: 9px;
+  padding-right: 14px;
+}
+.logo-icon {
+  width: 30px; height: 30px;
+  background: linear-gradient(135deg, var(--accent) 0%, #60a5fa 100%);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  box-shadow: 0 0 16px rgba(59,130,246,.35);
+  flex-shrink: 0;
+}
+.logo-text h1 { font-size: 13px; font-weight: 700; letter-spacing: -.3px; color: var(--text); }
+.logo-text p  { font-size: 9px; color: var(--muted); margin-top: 1px; letter-spacing: .3px; }
+
+.tb-sep { width: 1px; height: 28px; background: var(--border); margin: 0 4px; }
+
+.tb-import-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 13px;
+  height: 32px;
+  background: rgba(59,130,246,.12);
+  border: 1px solid rgba(59,130,246,.35);
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, box-shadow .15s;
+  white-space: nowrap;
+  user-select: none;
+}
+.tb-import-btn:hover {
+  background: rgba(59,130,246,.22);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.tb-import-btn.drag {
+  border-style: dashed;
+  background: rgba(59,130,246,.18);
+}
+
+.tb-icon-btn {
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.tb-icon-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+#theme-btn {
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, color .15s, background .15s;
+}
+#theme-btn:hover { border-color: var(--warn); color: var(--warn); background: rgba(245,158,11,.1); }
+
+/* ─── Left Vertical Toolbar ─────────────────────────────────── */
+#left-toolbar {
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0;
+  bottom: var(--sb-h);
+  width: var(--ltb-w);
+  background: rgba(7,9,14,.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 3px;
+  z-index: 90;
+}
+.ltb-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.ltb-sep {
+  width: 26px; height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+.ltb-btn {
+  width: 38px; height: 38px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+  position: relative;
+}
+.ltb-btn:hover {
+  background: rgba(59,130,246,.1);
+  border-color: var(--border);
+  color: var(--text);
+}
+.ltb-btn.act {
+  background: rgba(59,130,246,.18);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+.ltb-btn.nact {
+  background: rgba(0,255,136,.1);
+  border-color: var(--neon);
+  color: var(--neon);
+}
+/* Tooltip on hover */
+.ltb-btn::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(13,18,25,.97);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 200;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+.ltb-btn:hover::after { opacity: 1; }
+
+/* Reuse bb/nact classes from legacy bar for JS compat */
+.bb { display: none; } /* hidden — left toolbar replaces #bar */
+#bar { display: none; }
+
+/* ─── Right Properties Panel ────────────────────────────────── */
+#right-panel {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: var(--sb-h);
+  width: var(--rp-w);
+  background: rgba(13,18,25,.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 95;
+  transform: translateX(100%);
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+  box-shadow: -4px 0 24px rgba(0,0,0,.35);
+}
+body.rp-open #right-panel { transform: translateX(0); }
+
+#rp-tab {
+  position: absolute;
+  left: -28px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 56px;
+  background: rgba(13,18,25,.95);
+  border: 1px solid var(--border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: color .15s, background .15s;
+}
+#rp-tab:hover { color: var(--accent); background: var(--accent-glow); }
+
+#rp-inner {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0 16px;
+}
+#rp-inner::-webkit-scrollbar { width: 3px; }
+#rp-inner::-webkit-scrollbar-thumb { background: var(--border2); }
+
+/* ─── Scene Panel (embedded in right panel) ─────────────────── */
+#scene-panel {
+  margin: 0 0 2px 0;
+  border-bottom: 1px solid var(--border2);
+  padding-bottom: 4px;
+  user-select: none;
+}
+#scene-header {
+  padding: 8px 14px;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.1px;
+  color: var(--muted2);
+  cursor: default;
+  display: flex; align-items: center; gap: 6px;
+  border-bottom: 1px solid var(--border2);
+}
+#scene-count { color: var(--muted); font-weight: 400; font-size: 9px; margin-left: auto; }
+#scene-list { max-height: 160px; overflow-y: auto; padding: 3px 0; }
+.scene-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: background .1s;
+  font-size: 11px;
+}
+.scene-item:hover { background: rgba(255,255,255,.04); }
+.scene-item.active {
+  background: rgba(59,130,246,.12);
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+}
+.scene-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.scene-tris { font-size: 9px; color: var(--muted2); flex-shrink: 0; }
+.scene-btn {
+  width: 18px; height: 18px;
+  border: none; background: none;
+  color: var(--muted); cursor: pointer;
+  font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 3px; flex-shrink: 0;
+  transition: background .1s, color .1s;
+}
+.scene-btn:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.scene-empty { padding: 10px 14px; font-size: 10px; color: var(--muted2); text-align: center; }
+
+/* ─── Right Panel Sections ──────────────────────────────────── */
+.rp-sec {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border2);
+}
+.rp-sec:last-child { border-bottom: none; }
+.sec-h {
+  font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.2px;
+  color: var(--muted2);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sec-h::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
+
+/* Badge */
+.badge {
+  display: none;
+  padding: 7px 10px;
+  background: rgba(16,185,129,.08);
+  border: 1px solid rgba(16,185,129,.22);
+  border-radius: 7px;
+  font-size: 11px;
+  color: var(--accent2);
+  word-break: break-all;
+  margin: 8px 14px;
+  line-height: 1.5;
+}
+.badge.on { display: block; }
+
+/* Sliders / params */
+.pr { margin-bottom: 10px; }
+.pr:last-child { margin-bottom: 0; }
+.ph { display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center; }
+.pl { font-size: 11px; color: var(--muted); }
+.pv { font-size: 11px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+input[type=range] {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  -webkit-appearance: none;
+  background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--pct, 50%), var(--border) var(--pct, 50%));
+  border-radius: 2px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,.15);
+}
+
+/* Buttons */
+.btn {
+  width: 100%; padding: 9px 12px;
+  border: none; border-radius: 8px;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s, box-shadow .15s;
+  letter-spacing: .2px;
+}
+.btn-p {
+  background: linear-gradient(135deg, var(--accent) 0%, #60a5fa 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(59,130,246,.3);
+}
+.btn-p:hover:not(:disabled) {
+  box-shadow: 0 4px 20px rgba(59,130,246,.45);
+  transform: translateY(-1px);
+}
+.btn-p:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+.btn-p:active { transform: none; }
+
+.btn-s {
+  width: 100%; padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  transition: background .15s, border-color .15s;
+  letter-spacing: .2px;
+}
+.btn-s:hover { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.4); }
+.btn-s:disabled { opacity: .4; cursor: not-allowed; }
+.btn-s.active { background: rgba(59,130,246,.15); border-color: var(--accent); color: var(--accent); }
+
+/* Progress */
+.prog { display: none; margin-top: 9px; }
+.prog.on { display: block; }
+.pt { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.pf { height: 100%; background: linear-gradient(90deg, var(--accent), #60a5fa); transition: width .4s; width: 0; }
+.pm { font-size: 10px; color: var(--muted); margin-top: 5px; }
+
+/* Stats */
+.sg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sc { background: rgba(255,255,255,.02); border: 1px solid var(--border2); border-radius: 7px; padding: 8px 10px; }
+.sn { font-size: 16px; font-weight: 800; color: var(--accent2); font-variant-numeric: tabular-nums; }
+.sl { font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted2); margin-top: 2px; }
+
+/* Visibility checkboxes */
+.vr {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 7px; cursor: pointer;
+  font-size: 11px; color: var(--muted);
+  padding: 4px 0;
+  transition: color .15s;
+}
+.vr:last-child { margin-bottom: 0; }
+.vr:hover { color: var(--text); }
+.vr input { accent-color: var(--accent2); width: 13px; height: 13px; cursor: pointer; }
+.sw { width: 10px; height: 10px; border-radius: 3px; margin-left: auto; flex-shrink: 0; }
+
+/* Primitives */
+.prim-block {
+  margin-bottom: 7px;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.prim-block:hover { border-color: var(--border); }
+.prim-toggle {
+  width: 100%; padding: 8px 11px;
+  background: rgba(255,255,255,.02);
+  border: none;
+  color: var(--text); font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 7px;
+  transition: background .15s;
+  letter-spacing: .1px;
+}
+.prim-toggle:hover { background: rgba(59,130,246,.07); }
+.prim-arrow { margin-left: auto; font-size: 9px; color: var(--muted2); transition: transform .2s; }
+.prim-toggle.open .prim-arrow { transform: rotate(180deg); }
+.prim-tag {
+  font-size: 9px; font-weight: 700;
+  color: var(--accent2);
+  background: rgba(16,185,129,.12);
+  padding: 2px 6px; border-radius: 4px;
+  border: 1px solid rgba(16,185,129,.2);
+}
+.prim-panel {
+  display: none; padding: 10px 11px 12px;
+  background: rgba(7,9,14,.5);
+  border-top: 1px solid var(--border2);
+}
+.prim-panel.open { display: block; }
+.pv-row { margin: 5px 0 3px; }
+.pv-label { font-size: 9px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted2); }
+.pv-grid3 {
+  display: grid;
+  grid-template-columns: 14px 1fr 14px 1fr 14px 1fr;
+  gap: 3px 5px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.pv-grid3 label { font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; }
+.pv-in {
+  width: 100%; padding: 4px 6px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text); font-size: 11px;
+  outline: none;
+  transition: border-color .15s;
+}
+.pv-in:focus { border-color: var(--accent); background: rgba(59,130,246,.06); }
+.btn-prim-add {
+  width: 100%; padding: 7px 9px;
+  border: 1px solid rgba(59,130,246,.35);
+  border-radius: 6px;
+  background: rgba(59,130,246,.1);
+  color: var(--accent); font-size: 11px; font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+}
+.btn-prim-add:hover { background: rgba(59,130,246,.2); box-shadow: 0 0 10px var(--accent-glow); }
+
+.btn-subtract {
+  width: 100%; padding: 9px 12px; margin-top: 6px;
+  border: 1px solid rgba(239,68,68,.35);
+  border-radius: 8px;
+  background: rgba(239,68,68,.08);
+  color: var(--danger); font-size: 12px; font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+}
+.btn-subtract:hover:not(:disabled) { background: rgba(239,68,68,.18); box-shadow: 0 0 12px rgba(239,68,68,.2); }
+.btn-subtract:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Tool results */
+.tool-result {
+  font-size: 10px; color: var(--muted);
+  margin-top: 7px; padding: 7px 9px;
+  background: rgba(255,255,255,.02);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  line-height: 1.8;
+}
+.tool-result b { color: var(--text); }
+.tool-result .ok { color: var(--accent2); }
+.tool-result .err { color: var(--danger); }
+
+/* Z-slice input */
+.zi {
+  width: 100%; margin-top: 6px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text); padding: 5px 8px; font-size: 11px;
+  outline: none;
+  transition: border-color .15s;
+}
+.zi:focus { border-color: var(--accent); }
+
+/* Export grid */
+.export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 7px; }
+
+/* Heal rows */
+.hrow { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 3px; }
+.hrow .hl { color: var(--muted); }
+.hrow .hv { font-weight: 700; color: var(--text); }
+.hrow .hv.ok  { color: var(--accent2); }
+.hrow .hv.err { color: var(--danger); }
+.heal-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted2); margin-bottom: 5px; }
+
+/* ─── Bottom Status Bar ──────────────────────────────────────── */
+#statusbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--sb-h);
+  background: rgba(7,9,14,.97);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px 0 calc(var(--ltb-w) + 14px);
+  z-index: 100;
+}
+.sb-hint {
+  font-size: 9.5px;
+  color: var(--muted2);
+  letter-spacing: .2px;
+  opacity: .7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Context Menu ──────────────────────────────────────────── */
+#ctx-menu {
+  position: fixed; display: none; z-index: 9999;
+  background: rgba(13,18,25,.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 4px 0; min-width: 192px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.6), 0 0 0 .5px rgba(255,255,255,.04);
+  font-size: 13px; user-select: none;
+  animation: ctx-in .12s ease;
+}
+@keyframes ctx-in { from { opacity: 0; transform: scale(.95) translateY(-4px); } to { opacity: 1; transform: none; } }
+.ctx-label {
+  padding: 7px 14px 5px; font-size: 10px; font-weight: 700;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .07em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px;
+}
+.ctx-sep { height: 1px; background: var(--border2); margin: 3px 0; }
+#ctx-menu button {
+  display: block; width: 100%; padding: 7px 14px 7px 34px; text-align: left;
+  background: none; border: none; color: var(--text); cursor: pointer;
+  font-size: 12px; font-family: inherit; position: relative;
+  transition: background .08s, color .08s;
+}
+#ctx-menu button .ctx-ico {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; line-height: 1; color: var(--muted);
+}
+#ctx-menu button:hover { background: var(--accent); color: #fff; }
+#ctx-menu button:hover .ctx-ico { color: #fff; }
+#ctx-menu button.ctx-danger { color: var(--danger); }
+#ctx-menu button.ctx-danger:hover { background: var(--danger); color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- ═══ Full-screen 3D Viewport ════════════════════════════════ -->
+<div id="vp">
+  <canvas id="c"></canvas>
+
+  <!-- Welcome overlay -->
+  <div id="wel">
+    <div class="ic">&#9653;</div>
+    <div class="wel-title">CFD Mesh Generator</div>
+    <div class="wel-sub">Import an STL file or add a primitive to begin</div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="ld">
+    <div class="spin"></div>
+    <div id="lm">Running pipeline&hellip;</div>
+    <div class="lt"><div id="lf"></div></div>
+    <div id="ls"></div>
+  </div>
+
+  <!-- HUD: geometry analysis -->
+  <div id="hud">
+    <div class="hd-t">Geometry Analysis</div>
+    <div class="hd-g" id="hudg"></div>
+    <div class="hd-d"></div>
+    <div id="hudx"></div>
+  </div>
+
+  <!-- Selection info overlay -->
+  <div id="sel">
+    <div class="sel-t"><span class="sdot"></span><span id="seltype">Face</span></div>
+    <div id="selrows"></div>
+  </div>
+
+  <!-- Viewport camera controls (top-right) -->
+  <div id="vc">
+    <button class="vb" id="vc-reset" title="Reset camera">&#8635;</button>
+    <button class="vb" id="vc-fit"   title="Fit to model">&#9655;</button>
+    <button class="vb" id="vc-grid"  title="Toggle grid">&#35;</button>
+    <button class="vb" id="vc-axes"  title="Toggle axes">&#43;</button>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+</div>
+
+<!-- ═══ Top Header Bar ════════════════════════════════════════ -->
+<header id="topbar">
+  <div class="tb-left">
+    <div class="logo">
+      <div class="logo-icon">&#9651;</div>
+      <div class="logo-text">
+        <h1>CFD Mesh</h1>
+        <p>C++ engine &bull; BL inflation</p>
+      </div>
+    </div>
+    <div class="tb-sep"></div>
+    <label class="tb-import-btn" id="dropzone" title="Import STL file">
+      <input type="file" id="filein" accept=".stl" style="display:none">
+      &#8645;&nbsp; Import STL
+    </label>
+  </div>
+
+  <div class="tb-center">
+    <!-- Quick-access shortcuts that open/scroll to right panel sections -->
+    <button class="tb-icon-btn" title="Add Cube — opens Primitives panel"
+      onclick="document.body.classList.add('rp-open');setTimeout(()=>{document.getElementById('btn-cube-toggle').dispatchEvent(new MouseEvent('click'));},80)">
+      &#9645;
+    </button>
+    <button class="tb-icon-btn" title="Add Sphere — opens Primitives panel"
+      onclick="document.body.classList.add('rp-open');setTimeout(()=>{document.getElementById('btn-sphere-toggle').dispatchEvent(new MouseEvent('click'));},80)">
+      &#9711;
+    </button>
+  </div>
+
+  <div class="tb-right">
+    <button id="theme-btn" title="Toggle light / dark theme">&#9790;</button>
+    <button class="tb-icon-btn" id="rp-toggle-btn" title="Toggle properties panel">&#8285;</button>
+  </div>
+</header>
+
+<!-- ═══ Left Vertical Toolbar ════════════════════════════════ -->
+<div id="left-toolbar">
+  <!-- Legacy bar hidden — left toolbar buttons carry the same IDs -->
+  <div id="bar" style="display:none">
+    <button class="bb act" id="b-none"></button>
+    <button class="bb" id="b-face"></button>
+    <button class="bb" id="b-edge"></button>
+    <button class="bb" id="b-vert"></button>
+    <div class="bsep"></div>
+    <button class="bb act" id="b-t"></button>
+    <button class="bb" id="b-r"></button>
+    <button class="bb" id="b-s"></button>
+    <div class="bsep"></div>
+    <button class="bb act" id="b-wf"></button>
+    <div class="bsep"></div>
+    <button class="bb" id="b-x"></button>
+  </div>
+
+  <!-- Visible toolbar buttons (mirror the #bar IDs via delegation) -->
+  <div class="ltb-group">
+    <button class="ltb-btn act" title="No selection (Esc)" onclick="document.getElementById('b-none').click()">
+      &#8212;
+    </button>
+    <button class="ltb-btn" title="Face select (F)" onclick="document.getElementById('b-face').click()">
+      &#9642;
+    </button>
+    <button class="ltb-btn" title="Edge select (E)" onclick="document.getElementById('b-edge').click()">
+      &#9135;
+    </button>
+    <button class="ltb-btn" title="Vertex select (V)" onclick="document.getElementById('b-vert').click()">
+      &middot;
+    </button>
+  </div>
+
+  <div class="ltb-sep"></div>
+
+  <div class="ltb-group">
+    <button class="ltb-btn act" title="Move / Translate (T)" onclick="document.getElementById('b-t').click()">
+      &#10021;
+    </button>
+    <button class="ltb-btn" title="Rotate (R)" onclick="document.getElementById('b-r').click()">
+      &#8635;
+    </button>
+    <button class="ltb-btn" title="Scale (S)" onclick="document.getElementById('b-s').click()">
+      &#10010;
+    </button>
+    <button class="ltb-btn" title="Clear transform (X)" onclick="document.getElementById('b-x').click()">
+      &#215;
+    </button>
+  </div>
+
+  <div class="ltb-sep"></div>
+
+  <div class="ltb-group">
+    <button class="ltb-btn" title="Wireframe (W)" onclick="document.getElementById('b-wf').click()">
+      &#9638;
+    </button>
+  </div>
+</div>
+
+<!-- ═══ Right Properties Panel ═══════════════════════════════ -->
+<aside id="right-panel">
+  <button id="rp-tab" title="Collapse panel">&#8250;</button>
+
+  <div id="rp-inner">
+
+    <!-- Scene Objects -->
+    <div id="scene-panel">
+      <div id="scene-header">
+        &#9726; Scene
+        <span id="scene-count">(0 items)</span>
+      </div>
+      <div id="scene-list"></div>
+    </div>
+
+    <!-- File badge -->
+    <div class="badge" id="badge"></div>
+
+    <!-- Primitives & Boolean -->
+    <div class="rp-sec">
+      <div class="sec-h">Primitives &amp; Boolean</div>
+
+      <!-- Cube -->
+      <div class="prim-block" id="cube-block">
+        <button class="prim-toggle" id="btn-cube-toggle">
+          &#9645;&nbsp; Cube
+          <span class="prim-tag" id="cube-tag" style="display:none">&#10003; in scene</span>
+          <span class="prim-arrow">&#9660;</span>
+        </button>
+        <div class="prim-panel" id="cube-panel">
+          <div class="pv-row"><span class="pv-label">Position</span></div>
+          <div class="pv-grid3">
+            <label>X</label><input class="pv-in" id="cube-cx" type="number" value="0"   step="0.1">
+            <label>Y</label><input class="pv-in" id="cube-cy" type="number" value="0"   step="0.1">
+            <label>Z</label><input class="pv-in" id="cube-cz" type="number" value="0"   step="0.1">
+          </div>
+          <div class="pv-row"><span class="pv-label">Size (half-extents)</span></div>
+          <div class="pv-grid3">
+            <label>L</label><input class="pv-in" id="cube-hx" type="number" value="0.5" step="0.1" min="0.01">
+            <label>W</label><input class="pv-in" id="cube-hy" type="number" value="0.5" step="0.1" min="0.01">
+            <label>H</label><input class="pv-in" id="cube-hz" type="number" value="0.5" step="0.1" min="0.01">
+          </div>
+          <button class="btn-prim-add" id="btn-add-cube">Add Cube to Scene</button>
+        </div>
+      </div>
+
+      <!-- Sphere -->
+      <div class="prim-block" id="sphere-block">
+        <button class="prim-toggle" id="btn-sphere-toggle">
+          &#9711;&nbsp; Sphere
+          <span class="prim-tag" id="sphere-tag" style="display:none">&#10003; in scene</span>
+          <span class="prim-arrow">&#9660;</span>
+        </button>
+        <div class="prim-panel" id="sphere-panel">
+          <div class="pv-row"><span class="pv-label">Position</span></div>
+          <div class="pv-grid3">
+            <label>X</label><input class="pv-in" id="sph-cx" type="number" value="0.5" step="0.1">
+            <label>Y</label><input class="pv-in" id="sph-cy" type="number" value="0.5" step="0.1">
+            <label>Z</label><input class="pv-in" id="sph-cz" type="number" value="0.5" step="0.1">
+          </div>
+          <div class="pv-row"><span class="pv-label">Radii (L / W / H)</span></div>
+          <div class="pv-grid3">
+            <label>L</label><input class="pv-in" id="sph-rx" type="number" value="0.45" step="0.05" min="0.01">
+            <label>W</label><input class="pv-in" id="sph-ry" type="number" value="0.45" step="0.05" min="0.01">
+            <label>H</label><input class="pv-in" id="sph-rz" type="number" value="0.45" step="0.05" min="0.01">
+          </div>
+          <button class="btn-prim-add" id="btn-add-sphere">Add Sphere to Scene</button>
+        </div>
+      </div>
+
+      <!-- Boolean subtract -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <label style="font-size:11px;color:var(--muted);white-space:nowrap;">Resolution</label>
+        <input type="range" id="bool-res" min="60" max="220" step="10" value="160"
+          style="flex:1;accent-color:var(--accent);">
+        <span id="bool-res-val" style="font-size:11px;color:var(--text);min-width:28px;text-align:right;">160</span>
+      </div>
+      <button class="btn-subtract" id="btn-subtract" disabled title="Add both a cube and sphere first">
+        &#8854;&nbsp; Subtract (Cube &minus; Sphere)
+      </button>
+      <div class="tool-result" id="bool-result" style="display:none"></div>
+    </div>
+
+    <!-- Mesh Parameters -->
+    <div class="rp-sec">
+      <div class="sec-h">Mesh Parameters</div>
+      <div class="pr">
+        <div class="ph"><span class="pl">Mesh size</span><span class="pv" id="v0">0.30</span></div>
+        <input type="range" id="s0" min="0.05" max="1.0" step="0.05" value="0.30">
+      </div>
+      <div class="pr">
+        <div class="ph"><span class="pl">Boundary layers</span><span class="pv" id="v1">3</span></div>
+        <input type="range" id="s1" min="1" max="12" step="1" value="3">
+      </div>
+      <div class="pr">
+        <div class="ph"><span class="pl">First cell thickness</span><span class="pv" id="v2">0.050</span></div>
+        <input type="range" id="s2" min="0.005" max="0.2" step="0.005" value="0.050">
+      </div>
+      <div class="pr">
+        <div class="ph"><span class="pl">Growth ratio</span><span class="pv" id="v3">1.20</span></div>
+        <input type="range" id="s3" min="1.05" max="2.0" step="0.05" value="1.20">
+      </div>
+    </div>
+
+    <!-- Generate -->
+    <div class="rp-sec">
+      <div class="sec-h">Generate</div>
+      <button class="btn btn-p" id="btngen" disabled>&#9654;&nbsp; Generate Mesh</button>
+      <div class="prog" id="prog">
+        <div class="pt"><div class="pf" id="pf"></div></div>
+        <div class="pm" id="pm"></div>
+      </div>
+    </div>
+
+    <!-- Mesh Statistics -->
+    <div class="rp-sec" id="sec-stats" style="display:none">
+      <div class="sec-h">Mesh Statistics</div>
+      <div class="sg" id="statgrid"></div>
+    </div>
+
+    <!-- Visibility -->
+    <div class="rp-sec" id="sec-vis" style="display:none">
+      <div class="sec-h">Visibility</div>
+      <label class="vr"><input type="checkbox" id="ck0" checked><span>Surface edges</span><span class="sw" style="background:#55aaff"></span></label>
+      <label class="vr"><input type="checkbox" id="ck1" checked><span>Surface fill</span><span class="sw" style="background:#1a4a8a"></span></label>
+      <label class="vr"><input type="checkbox" id="ck2" checked><span>Volume mesh</span><span class="sw" style="background:#00ee77"></span></label>
+      <label class="vr"><input type="checkbox" id="ck3"><span>Boundary layers</span><span class="sw" style="background:#ff9900"></span></label>
+      <label class="vr"><input type="checkbox" id="ck4"><span>Original STL</span><span class="sw" style="background:#555"></span></label>
+    </div>
+
+    <!-- Tools -->
+    <div class="rp-sec" id="sec-tools" style="display:none">
+      <div class="sec-h">Tools &amp; Export</div>
+
+      <!-- Delete / Rename -->
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <button class="btn btn-p" id="btn-delete-active" style="flex:1;background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:#ef4444"
+          title="Delete selected object (Del)">&#10005;&nbsp; Delete</button>
+        <button class="btn btn-s" id="btn-rename-active" style="flex:1" title="Rename">&#9998;&nbsp; Rename</button>
+      </div>
+
+      <!-- Heal -->
+      <div id="heal-before" class="tool-result" style="display:none"></div>
+      <button class="btn btn-p" id="btn-heal" style="margin-top:6px" disabled>&#9874;&nbsp; Heal Mesh</button>
+      <div class="tool-result" id="heal-result" style="display:none;margin-top:7px"></div>
+
+      <!-- Slice -->
+      <div style="margin-top:12px">
+        <div class="ph" style="margin-bottom:4px">
+          <span class="pl">Slice at Z</span>
+          <span class="pv" id="z-disp">0.00</span>
+        </div>
+        <input type="range" id="z-slider" min="-100" max="100" step="0.01" value="0">
+        <input class="zi" type="number" id="z-input" step="0.01" value="0" placeholder="Z value">
+        <button class="btn-s" id="btn-slice" style="margin-top:6px">&#9701;&nbsp; Slice</button>
+      </div>
+
+      <!-- Curvature -->
+      <div style="margin-top:12px">
+        <button class="btn-s" id="btn-curv">&#9675;&nbsp; Curvature Heatmap</button>
+        <div class="tool-result" id="curv-result" style="display:none"></div>
+      </div>
+
+      <!-- Export -->
+      <div style="margin-top:12px">
+        <div class="sec-h" style="margin-bottom:7px;font-size:8.5px">Export</div>
+        <div class="export-grid">
+          <button class="btn-s" id="exp-stl">STL binary</button>
+          <button class="btn-s" id="exp-obj">OBJ</button>
+          <button class="btn-s" id="exp-ply">PLY</button>
+          <button class="btn-s" id="exp-step">STEP</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- #rp-inner -->
+</aside>
+
+<!-- ═══ Bottom Status Bar ════════════════════════════════════ -->
+<div id="statusbar">
+  <span class="sb-hint">Orbit: drag &bull; Pan: right drag &bull; Scroll: zoom &bull; F/E/V select mode &bull; T/R/S gizmo &bull; W wireframe &bull; Ctrl+click: menu</span>
+</div>
+
+<script>
+/* ─── Right panel collapse toggle ─────────────────────────── */
+(function(){
+  var body = document.body;
+  var tabBtn = document.getElementById('rp-tab');
+  var toggleBtn = document.getElementById('rp-toggle-btn');
+
+  function toggle() {
+    body.classList.toggle('rp-open');
+    tabBtn.textContent = body.classList.contains('rp-open') ? '›' : '‹';
+  }
+
+  tabBtn.addEventListener('click', toggle);
+  if (toggleBtn) toggleBtn.addEventListener('click', toggle);
+
+  /* sync visual state of left toolbar visible buttons with hidden #bar buttons */
+  function syncLtbState() {
+    var bIds = ['b-none','b-face','b-edge','b-vert','b-t','b-r','b-s','b-x','b-wf'];
+    var visButtons = document.querySelectorAll('#left-toolbar .ltb-btn');
+    var mapping = [
+      {hidden:'b-none', vi:0},
+      {hidden:'b-face', vi:1},
+      {hidden:'b-edge', vi:2},
+      {hidden:'b-vert', vi:3},
+      {hidden:'b-t',    vi:4},
+      {hidden:'b-r',    vi:5},
+      {hidden:'b-s',    vi:6},
+      {hidden:'b-x',    vi:7},
+      {hidden:'b-wf',   vi:8}
+    ];
+    var mo = new MutationObserver(function(){
+      mapping.forEach(function(m){
+        var hid = document.getElementById(m.hidden);
+        var vis = visButtons[m.vi];
+        if (!hid || !vis) return;
+        vis.classList.toggle('act', hid.classList.contains('act'));
+        vis.classList.toggle('nact', hid.classList.contains('nact'));
+      });
+    });
+    bIds.forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) mo.observe(el, {attributes:true, attributeFilter:['class']});
+    });
+    /* initial sync */
+    mapping.forEach(function(m){
+      var hid = document.getElementById(m.hidden);
+      var vis = visButtons[m.vi];
+      if (!hid || !vis) return;
+      vis.classList.toggle('act', hid.classList.contains('act'));
+    });
+  }
+  syncLtbState();
+})();
+</script>
+
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE            from 'three';
+import { OrbitControls }     from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { STLLoader }         from 'three/addons/loaders/STLLoader.js';
+import { mergeVertices }     from 'three/addons/utils/BufferGeometryUtils.js';
+import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/dist/lil-gui.esm.min.js';
+
+// ─── Renderer ────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const vp     = document.getElementById('vp');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x0d1117);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 100000);
+camera.position.set(3, 2, 5);
+
+// Lights — explicit, no Object.assign tricks
+const amb = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(amb);
+const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+sun.position.set(3, 6, 3);
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x8899ff, 0.25);
+fill.position.set(-3, -1, -2);
+scene.add(fill);
+
+// Grid + Axes
+let isLight = false;   // declared here so gridColors() can read it at init time
+function gridColors() {
+  return isLight ? [0x9ba5b0, 0xc8d0d8] : [0x4a5568, 0x2d3748];
+}
+let gridSize = 10, gridDivs = 30;
+let grid = new THREE.GridHelper(gridSize, gridDivs, ...gridColors());
+scene.add(grid);
+let axes = new THREE.AxesHelper(0.5);
+scene.add(axes);
+
+// ─── Controls ────────────────────────────────────────────────
+const orbit = new OrbitControls(camera, canvas);
+orbit.enableDamping = true;
+orbit.dampingFactor = 0.08;
+orbit.screenSpacePanning = true;
+
+const xform = new TransformControls(camera, canvas);
+xform.addEventListener('dragging-changed', e => { orbit.enabled = !e.value; });
+scene.add(xform);
+
+// ─── lil-gui ─────────────────────────────────────────────────
+const P = { fillOp: 0.22, edgeOp: 0.90, volOp: 0.40, blOp: 0.75 };
+const gui = new GUI({ title: 'Layer Control', width: 200 });
+gui.domElement.style.cssText = 'position:absolute;top:50px;right:10px;z-index:10;';
+vp.appendChild(gui.domElement);
+const gS = gui.addFolder('Surface');
+gS.add(P, 'fillOp', 0, 1, 0.01).name('Fill opacity').onChange(v => { if (fillM) fillM.material.opacity = v; });
+gS.add(P, 'edgeOp', 0, 1, 0.01).name('Edge opacity').onChange(v => { if (edgeM) edgeM.material.opacity = v; });
+const gV = gui.addFolder('Volume / BL');
+gV.add(P, 'volOp', 0, 1, 0.01).name('Volume').onChange(v => eachMat(volG, m => m.opacity = v));
+gV.add(P, 'blOp',  0, 1, 0.01).name('BL').onChange(v => eachMat(blG, m => m.opacity = v));
+gui.close();
+
+function eachMat(grp, fn) { if (grp) grp.traverse(c => { if (c.material) fn(c.material); }); }
+
+// ─── Mesh layer refs ─────────────────────────────────────────
+let fillM = null, edgeM = null, volG = null, blG = null;
+let stlG  = null, stlFillM = null;
+let pickable = [];
+let mScale = 1;
+
+// ─── Wireframe state ─────────────────────────────────────────
+let wireframeMode = true; // default: on
+
+function applyWireframe(mesh, on) {
+  if (!mesh) return;
+  mesh.material.wireframe    = on;
+  mesh.material.opacity      = on ? 1.0 : (mesh._baseOpacity ?? 0.5);
+  mesh.material.transparent  = !on;
+  mesh.material.needsUpdate  = true;
+}
+
+function setWireframe(on) {
+  wireframeMode = on;
+  // Apply to all loaded STL fills and their edge overlays
+  files.forEach(f => {
+    applyWireframe(f.fillMesh, on);
+    if (f.edgeMesh) f.edgeMesh.visible = !on;
+  });
+  applyWireframe(fillM, on);
+  // Edge overlay only makes sense when not in wireframe
+  if (edgeM) edgeM.visible = !on && document.getElementById('ck0').checked;
+  document.getElementById('b-wf').classList.toggle('act', on);
+}
+
+document.getElementById('b-wf').addEventListener('click', () => setWireframe(!wireframeMode));
+
+// ─── Face group data (BFS, fetched after upload) ──────────────
+let faceGroups      = null; // array of arrays of triangle indices
+let triangleToGroup = null; // Int32Array: triangle index → group index
+let faceBoundaries  = null; // array of loops-of-loops-of-[x,y,z] per group
+
+// ─── Resize ──────────────────────────────────────────────────
+function onResize() {
+  const w = vp.clientWidth, h = vp.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(onResize).observe(vp);
+onResize();
+
+// ─── Theme toggle ────────────────────────────────────────────
+const DARK_BG  = 0x0d1117;
+const LIGHT_BG = 0xf6f8fa;
+function modelColor() { return isLight ? 0x000000 : 0xffffff; }
+
+const themeBtn = document.getElementById('theme-btn');
+themeBtn.addEventListener('click', () => {
+  isLight = !isLight;
+  document.body.classList.toggle('light', isLight);
+  renderer.setClearColor(isLight ? LIGHT_BG : DARK_BG);
+  themeBtn.innerHTML = isLight ? '&#9788;' : '&#9790;';  // sun : moon
+
+  // Rebuild grid with theme-appropriate colors (preserve position + visibility)
+  const gridPos = grid.position.clone();
+  const gridVis = grid.visible;
+  scene.remove(grid);
+  grid = new THREE.GridHelper(gridSize, gridDivs, ...gridColors());
+  grid.position.copy(gridPos);
+  grid.visible = gridVis;
+  scene.add(grid);
+
+  // Update every loaded STL fill mesh to contrast with the new background
+  const col = modelColor();
+  for (const f of files) {
+    if (f.fillMesh) f.fillMesh.material.color.setHex(col);
+  }
+  if (fillM) fillM.material.color.setHex(col);
+  if (stlFillM) stlFillM.material.color.setHex(col);
+});
+
+// ─── Render loop ─────────────────────────────────────────────
+(function loop() { requestAnimationFrame(loop); orbit.update(); renderer.render(scene, camera); })();
+
+// ─── Camera helpers ──────────────────────────────────────────
+function fitCamera(box) {
+  const c = new THREE.Vector3(), s = new THREE.Vector3();
+  box.getCenter(c); box.getSize(s);
+  const d = s.length();
+  mScale = d;
+  orbit.target.copy(c);
+  camera.position.copy(c).addScaledVector(new THREE.Vector3(1, 0.6, 1).normalize(), d * 1.6);
+  camera.near = d * 0.0001;
+  camera.far  = d * 500;
+  camera.updateProjectionMatrix();
+
+  // Rebuild grid to fit model
+  scene.remove(grid);
+  gridSize = Math.max(d * 3, 2);
+  gridDivs = Math.max(Math.min(Math.floor(gridSize / Math.max(d * 0.06, 0.01)), 80), 8);
+  grid = new THREE.GridHelper(gridSize, gridDivs, ...gridColors());
+  grid.position.set(c.x, box.min.y, c.z);
+  scene.add(grid);
+  axes.position.set(box.min.x, box.min.y, box.min.z);
+  axes.scale.setScalar(Math.max(d * 0.18, 0.02));
+}
+
+function disposeGrp(g) {
+  if (!g) return;
+  scene.remove(g);
+  g.traverse(c => {
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) [].concat(c.material).forEach(m => m.dispose());
+  });
+}
+
+// ─── STL preview ─────────────────────────────────────────────
+const stlLoader = new STLLoader();
+
+// loadSTLPreview adds a new Group to the scene for `file`.
+// Returns a Promise that resolves to {stlGroup, fillMesh, edgeMesh, triCount}.
+function loadSTLPreview(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    stlLoader.load(url, rawGeo => {
+      URL.revokeObjectURL(url);
+
+      // Hard-edge split normals, then merge (same pipeline as loadSTLIntoScene)
+      computeHardEdgeNormals(rawGeo, 30);
+      let geo = mergeVertices(rawGeo, 1e-4);
+
+      // Solid fill (base opacity stored for wireframe toggle)
+      const newFillM = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+        color: modelColor(), transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+      }));
+      newFillM._baseOpacity = 0.5;
+
+      // EdgesGeometry — shows hard angles only (threshold 20°)
+      const eGeo  = new THREE.EdgesGeometry(geo, 20);
+      const newEdgeM = new THREE.LineSegments(eGeo, new THREE.LineBasicMaterial({ color: 0x8b949e, transparent: true, opacity: 0.7 }));
+
+      const newStlG = new THREE.Group();
+      newStlG.add(newFillM, newEdgeM);
+      scene.add(newStlG);
+      pickable.push(newFillM);
+
+      // Apply current wireframe state to newly loaded STL
+      applyWireframe(newFillM, wireframeMode);
+      newEdgeM.visible = !wireframeMode;
+
+      const box = new THREE.Box3().setFromObject(newStlG);
+
+      // Fit camera to ALL loaded models combined, not just this one
+      const allBox = new THREE.Box3();
+      for (const f of files) { if (f.stlGroup && f.visible) allBox.expandByObject(f.stlGroup); }
+      allBox.expandByObject(newStlG);
+      fitCamera(allBox);
+      updateZRange(allBox);
+
+      const verts = geo.attributes.position.count;
+      const faces = geo.index ? geo.index.count / 3 : verts / 3;
+      const edges = eGeo.attributes.position.count / 2;
+      showHUD([
+        [verts.toLocaleString(), 'Vertices'],
+        [faces.toLocaleString(), 'Faces'],
+        [edges.toLocaleString(), 'Edges'],
+        [(edges / Math.max(faces,1)).toFixed(2), 'Edge density'],
+      ], [['Source','STL preview'], ['Diag.', box.getSize(new THREE.Vector3()).length().toFixed(4)+' m']]);
+
+      document.getElementById('wel').classList.add('gone');
+      document.getElementById('sec-vis').style.display   = '';
+      document.getElementById('sec-tools').style.display = '';
+      document.getElementById('ck4').checked = true;
+      syncVis();
+      showHealBefore(geo);
+
+      // Keep legacy refs in sync with the most-recently-loaded STL
+      const fgd = computeFaceGroupsForGeo(geo);
+      if (fgd) { newFillM._faceGroups=fgd.groups; newFillM._triToGroup=fgd.groupOf; }
+      stlG = newStlG; stlFillM = newFillM;
+
+      resolve({ stlGroup: newStlG, fillMesh: newFillM, edgeMesh: newEdgeM, triCount: Math.round(faces) });
+    }, undefined, err => { reject(err); toast('STL parse error: ' + err.message); });
+  });
+}
+
+// ─── Pipeline mesh render ─────────────────────────────────────
+function renderMesh(data) {
+  disposeGrp(fillM?.parent); fillM = edgeM = null;
+  disposeGrp(volG); volG = null;
+  disposeGrp(blG);  blG  = null;
+  pickable = files.map(f => f.fillMesh).filter(Boolean);
+  xform.detach();
+
+  const pts = data.nodes;
+
+  // Surface fill + EdgesGeometry wireframe
+  const surfGrp = new THREE.Group();
+  if (data.surface_triangles?.length) {
+    const pos = new Float32Array(pts.flat());
+    const idx = new Uint32Array(data.surface_triangles.flat());
+
+    const fGeo = new THREE.BufferGeometry();
+    fGeo.setAttribute('position', new THREE.BufferAttribute(pos.slice(), 3));
+    fGeo.setIndex(new THREE.BufferAttribute(idx, 1));
+    fGeo.computeVertexNormals();
+
+    fillM = new THREE.Mesh(fGeo, new THREE.MeshLambertMaterial({
+      color: modelColor(), transparent: true, opacity: P.fillOp,
+      side: THREE.DoubleSide, depthWrite: false,
+    }));
+    fillM._baseOpacity = P.fillOp;
+
+    // Independent EdgesGeometry — NOT wireframe: material flag, a separate object
+    const eGeo = new THREE.EdgesGeometry(fGeo, 15);
+    edgeM = new THREE.LineSegments(eGeo, new THREE.LineBasicMaterial({
+      color: 0x55aaff, transparent: true, opacity: P.edgeOp,
+    }));
+
+    surfGrp.add(fillM, edgeM);
+    pickable.push(fillM);
+  }
+  scene.add(surfGrp);
+
+  // Volume tet edges — the green cloud wrapping the body
+  volG = new THREE.Group();
+  if (data.volume_edges?.length) {
+    const arr = [];
+    for (const [a,b] of data.volume_edges) { arr.push(...pts[a], ...pts[b]); }
+    const vGeo = new THREE.BufferGeometry();
+    vGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(arr), 3));
+    volG.add(new THREE.LineSegments(vGeo, new THREE.LineBasicMaterial({
+      color: 0x00ee77, transparent: true, opacity: P.volOp,
+    })));
+  }
+  scene.add(volG);
+
+  // BL edges
+  blG = new THREE.Group();
+  if (data.bl_edges?.length) {
+    const arr = [];
+    for (const [a,b] of data.bl_edges) { arr.push(...pts[a], ...pts[b]); }
+    const bGeo = new THREE.BufferGeometry();
+    bGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(arr), 3));
+    blG.add(new THREE.LineSegments(bGeo, new THREE.LineBasicMaterial({
+      color: 0xff9900, transparent: true, opacity: P.blOp,
+    })));
+  }
+  blG.visible = false;
+  scene.add(blG);
+
+  // Fit to full CFD domain
+  const b = data.bounds;
+  fitCamera(new THREE.Box3(new THREE.Vector3(...b.min), new THREE.Vector3(...b.max)));
+
+  // Stats
+  const s = data.stats;
+  const eGeo2 = fillM ? new THREE.EdgesGeometry(fillM.geometry, 15) : null;
+  const eCt   = eGeo2 ? eGeo2.attributes.position.count / 2 : 0;
+  showHUD([
+    [s.num_nodes.toLocaleString(),       'Nodes'],
+    [s.num_tets.toLocaleString(),        'Tets'],
+    [(s.num_prisms||0).toLocaleString(), 'Prisms'],
+    [s.num_surface_tris.toLocaleString(),'Surf. tris'],
+  ], [
+    ['Volume edges', (data.volume_edges?.length||0).toLocaleString()],
+    ['Diag.', b.diagonal.toFixed(4)+' m'],
+  ]);
+
+  document.getElementById('statgrid').innerHTML = [
+    [s.num_nodes,'Nodes'],[s.num_tets,'Tets'],
+    [s.num_prisms||0,'Prisms'],[s.num_surface_tris,'Surf. tris'],
+  ].map(([v,l])=>`<div class="sc"><div class="sn">${Number(v).toLocaleString()}</div><div class="sl">${l}</div></div>`).join('');
+  document.getElementById('sec-stats').style.display = '';
+  document.getElementById('sec-vis').style.display   = '';
+  applyWireframe(fillM, wireframeMode);
+  if (edgeM) edgeM.visible = !wireframeMode && document.getElementById('ck0').checked;
+  syncVis();
+}
+
+// ─── Visibility ───────────────────────────────────────────────
+function syncVis() {
+  if (edgeM)    edgeM.visible       = !wireframeMode && document.getElementById('ck0').checked;
+  if (fillM)    fillM.visible       = document.getElementById('ck1').checked;
+  if (volG)     volG.visible        = document.getElementById('ck2').checked;
+  if (blG)      blG.visible         = document.getElementById('ck3').checked;
+  const ck4 = document.getElementById('ck4').checked;
+  files.forEach(f => { if (f.stlGroup) f.stlGroup.visible = f.visible && ck4; });
+}
+['ck0','ck1','ck2','ck3','ck4'].forEach(id =>
+  document.getElementById(id).addEventListener('change', syncVis));
+
+// ─── HUD ─────────────────────────────────────────────────────
+function showHUD(grid, extra) {
+  document.getElementById('hudg').innerHTML = grid.map(([v,l])=>
+    `<div><div class="hd-v">${v}</div><div class="hd-l">${l}</div></div>`).join('');
+  document.getElementById('hudx').innerHTML = extra.map(([l,v])=>
+    `<div class="hd-r"><span class="hd-rl">${l}</span><span class="hd-rv">${v}</span></div>`).join('');
+  document.getElementById('hud').classList.add('on');
+}
+
+// ─── Selection system ─────────────────────────────────────────
+let selMode = 'none';
+const rc = new THREE.Raycaster();
+
+function setMode(m) {
+  selMode = m;
+  ['none','face','edge','vert'].forEach(k => {
+    const el = document.getElementById('b-'+k);
+    el.classList.toggle('act', k === m);
+    el.classList.toggle('nact', k === m && m !== 'none');
+    if (k === m && m !== 'none') el.classList.add('nact'); else el.classList.remove('nact');
+  });
+  if (m !== 'none') { document.getElementById('b-none').classList.remove('act'); }
+  if (m === 'none') clearSel();
+}
+document.getElementById('b-none').addEventListener('click', () => setMode('none'));
+document.getElementById('b-face').addEventListener('click', () => setMode('face'));
+document.getElementById('b-edge').addEventListener('click', () => setMode('edge'));
+document.getElementById('b-vert').addEventListener('click', () => setMode('vert'));
+
+// Transform mode
+function setXformMode(m) {
+  xform.setMode(m);
+  ['t','r','s'].forEach(k => document.getElementById('b-'+k).classList.toggle('act', m[0]===k));
+}
+document.getElementById('b-t').addEventListener('click', () => setXformMode('translate'));
+document.getElementById('b-r').addEventListener('click', () => setXformMode('rotate'));
+document.getElementById('b-s').addEventListener('click', () => setXformMode('scale'));
+document.getElementById('b-x').addEventListener('click', () => xform.detach());
+
+// Keyboard
+window.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && activeFileId) {
+    e.preventDefault();
+    removeFile(activeFileId);
+    return;
+  }
+  ({ f:()=>setMode('face'), e:()=>setMode('edge'), v:()=>setMode('vert'),
+     t:()=>setXformMode('translate'), r:()=>setXformMode('rotate'), s:()=>setXformMode('scale'),
+     w:()=>setWireframe(!wireframeMode),
+     Escape:()=>{ setMode('none'); xform.detach(); } })[e.key]?.();
+});
+
+// Highlight objects
+let hlF = null, hlE = null, hlV = null, hlB = null;
+
+function clearSel() {
+  [hlF, hlE, hlV, hlB].forEach(h => { if (!h) return; scene.remove(h); h.traverse(c=>{ if(c.geometry)c.geometry.dispose(); if(c.material)c.material.dispose(); }); });
+  hlF = hlE = hlV = hlB = null;
+  document.getElementById('sel').classList.remove('on');
+  document.getElementById('hud').classList.toggle('on', !!document.getElementById('hudg').children.length);
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || xform.dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  rc.setFromCamera(new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width)  * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  ), camera);
+
+  const hits = rc.intersectObjects(pickable, false);
+
+  // Ctrl+click (or Cmd+click on Mac) → context menu
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    if (hits.length) {
+      const f = files.find(f => f.fillMesh === hits[0].object);
+      if (f) ctxMenu.show(e.clientX, e.clientY, f.id);
+    }
+    return;
+  }
+
+  if (!hits.length) { xform.detach(); clearSel(); return; }
+
+  if (selMode !== 'none') {
+    e.stopPropagation();
+    clearSel();
+    pick(hits[0]);
+  } else {
+    xform.attach(hits[0].object.parent || hits[0].object);
+  }
+});
+
+function pick(hit) {
+  const geo = hit.object.geometry;
+  const wm  = hit.object.matrixWorld;
+  const fi  = hit.faceIndex;
+  const pos = geo.attributes.position;
+
+  let ia, ib, ic;
+  if (geo.index) { ia=geo.index.getX(fi*3); ib=geo.index.getX(fi*3+1); ic=geo.index.getX(fi*3+2); }
+  else           { ia=fi*3; ib=fi*3+1; ic=fi*3+2; }
+
+  const va = new THREE.Vector3().fromBufferAttribute(pos,ia).applyMatrix4(wm);
+  const vb = new THREE.Vector3().fromBufferAttribute(pos,ib).applyMatrix4(wm);
+  const vc = new THREE.Vector3().fromBufferAttribute(pos,ic).applyMatrix4(wm);
+
+  if (selMode === 'face') {
+    // Determine which triangles to highlight: the whole BFS group if available,
+    // otherwise just the single hit triangle.
+
+    // Special case: BoxGeometry meshes have _boxFaceCount set.
+    // Each of the 6 box quad-faces is made of exactly 2 triangles.
+    // faceIndex is a triangle index; floor(fi/2) gives the quad-face group (0..5),
+    // and that group owns triangle indices [faceGroup*2, faceGroup*2+1].
+    let gi, groupTris;
+    if (hit.object._boxFaceCount) {
+      const faceGroup = Math.floor(fi / 2);
+      gi = faceGroup;
+      groupTris = [faceGroup * 2, faceGroup * 2 + 1];
+    } else {
+      const myGroups  = hit.object._faceGroups  || faceGroups;
+      const myToGroup = hit.object._triToGroup   || triangleToGroup;
+      gi = myToGroup ? myToGroup[fi] : -1;
+      groupTris = (gi >= 0 && myGroups) ? myGroups[gi] : [fi];
+    }
+
+    // Build highlight geometry from all triangles in the group
+    const hlPositions = [];
+    for (const tfi of groupTris) {
+      let a, b, c;
+      if (geo.index) {
+        a = geo.index.getX(tfi*3);
+        b = geo.index.getX(tfi*3+1);
+        c = geo.index.getX(tfi*3+2);
+      } else {
+        a = tfi*3; b = tfi*3+1; c = tfi*3+2;
+      }
+      for (const vi of [a, b, c]) {
+        const v = new THREE.Vector3().fromBufferAttribute(pos, vi).applyMatrix4(wm);
+        hlPositions.push(v.x, v.y, v.z);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(hlPositions, 3));
+    g.computeVertexNormals();
+    hlF = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+      color:0x39ff14, side:THREE.DoubleSide, transparent:true, opacity:0.72,
+      polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2,
+    }));
+    scene.add(hlF);
+    const ctr = va.clone().add(vb).add(vc).divideScalar(3);
+    // Compute total area of all group triangles
+    let totalArea = 0;
+    for (let k = 0; k < hlPositions.length; k += 9) {
+      const A = new THREE.Vector3(hlPositions[k],   hlPositions[k+1], hlPositions[k+2]);
+      const B = new THREE.Vector3(hlPositions[k+3], hlPositions[k+4], hlPositions[k+5]);
+      const C = new THREE.Vector3(hlPositions[k+6], hlPositions[k+7], hlPositions[k+8]);
+      totalArea += A.clone().sub(B).cross(A.clone().sub(C)).length() * 0.5;
+    }
+    // Draw boundary polygon loop(s) on top of the fill highlight
+    if (gi >= 0 && faceBoundaries && faceBoundaries[gi]) {
+      hlB = new THREE.Group();
+      const bMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+      for (const loop of faceBoundaries[gi]) {
+        if (loop.length < 2) continue;
+        const pts = new Float32Array(loop.length * 3);
+        loop.forEach(([x, y, z], i) => { pts[i*3]=x; pts[i*3+1]=y; pts[i*3+2]=z; });
+        const lg = new THREE.BufferGeometry();
+        lg.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+        hlB.add(new THREE.LineLoop(lg, bMat.clone()));
+      }
+      scene.add(hlB);
+    }
+
+    const polyVerts = (gi >= 0 && faceBoundaries && faceBoundaries[gi])
+      ? faceBoundaries[gi].reduce((s, l) => s + l.length, 0)
+      : 0;
+    const BOX_FACE_NAMES = ['Right (+X)', 'Left (-X)', 'Top (+Y)', 'Bottom (-Y)', 'Front (+Z)', 'Back (-Z)'];
+    const label = hit.object._boxFaceCount
+      ? `Box Face ${gi} (${BOX_FACE_NAMES[gi] || gi})`
+      : gi >= 0 ? `Face Group ${gi}` : 'Face Selected';
+    showSel(label, [
+      ['Triangles', groupTris.length],
+      ...(polyVerts ? [['Poly verts', polyVerts]] : []),
+      ['X', ctr.x.toFixed(5)], ['Y', ctr.y.toFixed(5)], ['Z', ctr.z.toFixed(5)],
+      ['Area', totalArea.toExponential(3)],
+    ]);
+  }
+
+  if (selMode === 'edge') {
+    const edges = [[va,vb],[vb,vc],[vc,va]];
+    const pt = hit.point;
+    let best=[va,vb], minD=Infinity;
+    for (const [a,b] of edges) {
+      const ab=b.clone().sub(a), t=Math.max(0,Math.min(1,pt.clone().sub(a).dot(ab)/ab.dot(ab)));
+      const d=pt.distanceTo(a.clone().add(ab.multiplyScalar(t)));
+      if(d<minD){minD=d;best=[a,b];}
+    }
+    const [ea,eb]=best;
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute([ea.x,ea.y,ea.z,eb.x,eb.y,eb.z],3));
+    hlE=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x39ff14}));
+    scene.add(hlE);
+    const sR=mScale*0.005, sg=new THREE.SphereGeometry(sR,8,6);
+    hlV=new THREE.Group();
+    const mA=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:0x39ff14}));
+    const mB=new THREE.Mesh(sg.clone(),new THREE.MeshBasicMaterial({color:0x39ff14}));
+    mA.position.copy(ea); mB.position.copy(eb);
+    hlV.add(mA,mB); scene.add(hlV);
+    const mid=ea.clone().add(eb).multiplyScalar(0.5);
+    showSel('Edge Selected',[['Length',ea.distanceTo(eb).toExponential(4)],['Mid X',mid.x.toFixed(5)],['Mid Y',mid.y.toFixed(5)],['Mid Z',mid.z.toFixed(5)]]);
+  }
+
+  if (selMode === 'vert') {
+    const pt=hit.point;
+    let best={d:Infinity,p:va};
+    for (const [p] of [[va],[vb],[vc]]) { const d=pt.distanceTo(p); if(d<best.d)best={d,p}; }
+    const sR=mScale*0.006;
+    hlV=new THREE.Mesh(new THREE.SphereGeometry(sR,12,8),new THREE.MeshBasicMaterial({color:0x39ff14}));
+    hlV.position.copy(best.p); scene.add(hlV);
+    showSel('Vertex Selected',[['X',best.p.x.toFixed(6)],['Y',best.p.y.toFixed(6)],['Z',best.p.z.toFixed(6)],['Snap dist',best.d.toExponential(3)]]);
+  }
+}
+
+function showSel(type, rows) {
+  document.getElementById('seltype').textContent = type;
+  document.getElementById('selrows').innerHTML = rows.map(([l,v])=>
+    `<div class="sel-r"><span class="sel-rl">${l}</span><span class="sel-rv">${v}</span></div>`).join('');
+  document.getElementById('sel').classList.add('on');
+  document.getElementById('hud').classList.remove('on');
+}
+
+// ─── View controls ────────────────────────────────────────────
+document.getElementById('vc-reset').addEventListener('click', () => orbit.reset());
+document.getElementById('vc-fit').addEventListener('click', () => {
+  const stlGroups = files.map(f => f.stlGroup).filter(Boolean);
+  const objs=[...stlGroups,fillM?.parent,volG,blG].filter(Boolean);
+  if(!objs.length) return;
+  const box=new THREE.Box3();
+  objs.forEach(o=>{if(o.visible)box.expandByObject(o);});
+  if(!box.isEmpty()) fitCamera(box);
+});
+document.getElementById('vc-grid').addEventListener('click', function(){grid.visible=!grid.visible;this.classList.toggle('act',!grid.visible);});
+document.getElementById('vc-axes').addEventListener('click', function(){axes.visible=!axes.visible;this.classList.toggle('act',!axes.visible);});
+
+// ─── Upload ───────────────────────────────────────────────────
+let files = [];        // [{id, filename, triCount, stlGroup, fillMesh, edgeMesh, visible}]
+let activeFileId = null;
+let jobId=null;
+const filein = document.getElementById('filein');
+const dropzone = document.getElementById('dropzone');
+const badge = document.getElementById('badge');
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => { e.preventDefault(); dropzone.classList.remove('drag'); if(e.dataTransfer.files[0]) go(e.dataTransfer.files[0]); });
+filein.addEventListener('change', () => { if(filein.files[0]) go(filein.files[0]); });
+
+async function go(file) {
+  if (!file.name.toLowerCase().endsWith('.stl')) { toast('Please select an STL file.'); return; }
+
+  // Reset scene-wide overlays only (not per-file STL groups)
+  faceGroups = null; triangleToGroup = null; faceBoundaries = null;
+  healedFileId = null;
+  if (sliceG) { scene.remove(sliceG); sliceG.traverse(c=>{if(c.geometry)c.geometry.dispose();}); sliceG=null; }
+  if (curvG)  { scene.remove(curvG);  curvG.traverse(c=>{if(c.geometry)c.geometry.dispose();}); curvG=null; curvOn=false; }
+  document.getElementById('heal-before').style.display = 'none';
+  document.getElementById('heal-result').style.display = 'none';
+  document.getElementById('curv-result').style.display = 'none';
+  document.getElementById('btn-heal').textContent = '⚒ Heal Mesh';
+  document.getElementById('btn-heal').disabled = true;
+  document.getElementById('btn-curv').textContent = '🌈 Curvature Heatmap';
+  document.getElementById('btn-curv').classList.remove('active');
+  badge.textContent = 'Uploading…'; badge.classList.add('on');
+  document.getElementById('btngen').disabled = true;
+
+  // Start Three.js preview immediately (non-blocking)
+  const previewPromise = loadSTLPreview(file);
+
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch('/api/upload', { method:'POST', body:fd });
+    const txt = await r.text();
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${txt.slice(0,120)}`);
+    const d = JSON.parse(txt);
+    if (!d.file_id) throw new Error('No file_id in response: ' + txt.slice(0,120));
+
+    activeFileId = d.file_id;
+    badge.innerHTML = `<b>${file.name}</b> &mdash; ${d.triangle_count.toLocaleString()} triangles`;
+    document.getElementById('btngen').disabled = false;
+
+    // Wait for the preview to finish so we have the meshes
+    const preview = await previewPromise;
+
+    // Register file entry
+    files.push({
+      id: d.file_id,
+      filename: file.name,
+      triCount: preview.triCount,
+      stlGroup: preview.stlGroup,
+      fillMesh: preview.fillMesh,
+      edgeMesh: preview.edgeMesh,
+      visible: true,
+    });
+    refreshScenePanel();
+
+    // Fetch BFS flat-face groups + boundary polygons in the background
+    fetch(`/api/upload/${activeFileId}/faces`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(fd => {
+        faceGroups      = fd.groups;
+        faceBoundaries  = fd.boundaries || null;
+        triangleToGroup = new Int32Array(fd.triangle_count).fill(-1);
+        fd.groups.forEach((grp, gi) => grp.forEach(ti => { triangleToGroup[ti] = gi; }));
+      })
+      .catch(() => { /* non-fatal: fall back to single-triangle selection */ });
+  } catch(e) {
+    badge.innerHTML = `<span style="color:var(--danger)">Upload failed: ${e.message}</span>`;
+    toast('Upload error: ' + e.message);
+  }
+}
+
+// ─── Sliders ──────────────────────────────────────────────────
+[[0,'0.30',v=>v.toFixed(2)],[1,'3',v=>+v],[2,'0.050',v=>v.toFixed(3)],[3,'1.20',v=>v.toFixed(2)]].forEach(([i,def,fmt])=>{
+  const sl=document.getElementById('s'+i), vl=document.getElementById('v'+i);
+  sl.addEventListener('input',()=>{vl.textContent=fmt(parseFloat(sl.value));});
+});
+
+// ─── Generate ────────────────────────────────────────────────
+document.getElementById('btngen').addEventListener('click', async () => {
+  if(!activeFileId) return;
+  document.getElementById('btngen').disabled = true;
+  showLD(0,'Starting pipeline…',''); setSP(0.05,'Submitting…');
+  try {
+    const r = await fetch('/api/generate-mesh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      file_id: activeFileId,
+      mesh_size: parseFloat(document.getElementById('s0').value),
+      boundary_layers: parseInt(document.getElementById('s1').value),
+      bl_thickness: parseFloat(document.getElementById('s2').value),
+      bl_ratio: parseFloat(document.getElementById('s3').value),
+    })});
+    if(!r.ok) throw new Error(await r.text());
+    jobId=(await r.json()).mesh_id;
+    poll();
+  } catch(e) { hideLD(); hideSP(); document.getElementById('btngen').disabled=false; toast('Error: '+e.message); }
+});
+
+function poll(){
+  setTimeout(async()=>{
+    try{
+      const d=await(await fetch(`/api/mesh/${jobId}/status`)).json();
+      const pct={pending:0.05,running:d.progress||0.45,complete:1,error:1}[d.status]||0;
+      showLD(pct,{pending:'Queued',running:'Running C++ pipeline…',complete:'Complete!',error:'Error'}[d.status],d.message||'');
+      setSP(pct,d.message||d.status);
+      if(d.status==='complete'){
+        const data=await(await fetch(`/api/mesh/${jobId}/data`)).json();
+        renderMesh(data); hideLD(); hideSP(); document.getElementById('btngen').disabled=false;
+      } else if(d.status==='error'){
+        hideLD(); hideSP(); document.getElementById('btngen').disabled=false; toast('Mesh failed: '+(d.message||'unknown'));
+      } else poll();
+    }catch(_){poll();}
+  },700);
+}
+
+function showLD(p,m,s){document.getElementById('ld').classList.add('on');document.getElementById('lf').style.width=(p*100)+'%';document.getElementById('lm').textContent=m;document.getElementById('ls').textContent=s;}
+function hideLD(){document.getElementById('ld').classList.remove('on');}
+function setSP(p,m){document.getElementById('prog').classList.add('on');document.getElementById('pf').style.width=(p*100)+'%';document.getElementById('pm').textContent=m;}
+function hideSP(){document.getElementById('prog').classList.remove('on');}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),5000);}
+
+// ─── Tools ────────────────────────────────────────────────────
+
+// Z-slider ↔ text input sync
+const zSlider = document.getElementById('z-slider');
+const zInput  = document.getElementById('z-input');
+const zDisp   = document.getElementById('z-disp');
+function syncZ(v) {
+  const n = parseFloat(v);
+  if (isNaN(n)) return;
+  zSlider.value = n;
+  zInput.value  = n.toFixed(3);
+  zDisp.textContent = n.toFixed(2);
+}
+zSlider.addEventListener('input', () => syncZ(zSlider.value));
+zInput.addEventListener('change', () => syncZ(zInput.value));
+
+// After STL loads — update Z slider range to match model
+function updateZRange(box) {
+  const zMin = box.min.z, zMax = box.max.z;
+  const pad  = (zMax - zMin) * 0.05 || 1;
+  zSlider.min  = (zMin - pad).toFixed(4);
+  zSlider.max  = (zMax + pad).toFixed(4);
+  zSlider.step = ((zMax - zMin) / 400 || 0.01).toFixed(6);
+  const mid = ((zMin + zMax) / 2).toFixed(3);
+  syncZ(mid);
+}
+
+// ─── Heal ─────────────────────────────────────────────────────
+let healedFileId = null;
+
+function healRows(d, title) {
+  const wt = d.is_watertight;
+  return `<div class="heal-title">${title}</div>` +
+    `<div class="hrow"><span class="hl">Vertices</span><span class="hv">${Number(d.vertex_count).toLocaleString()}</span></div>` +
+    `<div class="hrow"><span class="hl">Faces</span><span class="hv">${Number(d.face_count).toLocaleString()}</span></div>` +
+    `<div class="hrow"><span class="hl">Watertight</span><span class="hv ${wt?'ok':'err'}">${wt?'YES':'NO'}</span></div>` +
+    `<div class="hrow"><span class="hl">Boundary edges</span><span class="hv ${d.boundary_edges===0?'ok':'err'}">${d.boundary_edges}</span></div>` +
+    `<div class="hrow"><span class="hl">Non-manifold edges</span><span class="hv ${d.non_manifold_edges===0?'ok':'err'}">${d.non_manifold_edges}</span></div>`;
+}
+
+// Populate "before" stats from Three.js geometry (available right after STL loads)
+function showHealBefore(geo) {
+  const nVerts = geo.attributes.position.count;
+  const nFaces = geo.index ? geo.index.count / 3 : nVerts / 3;
+  const div = document.getElementById('heal-before');
+  div.innerHTML = healRows({
+    vertex_count: nVerts, face_count: nFaces,
+    is_watertight: false,          // unknown until we analyze
+    boundary_edges: '?', non_manifold_edges: '?'
+  }, 'Before heal');
+  div.style.display = '';
+  document.getElementById('btn-heal').disabled = false;
+}
+
+document.getElementById('btn-heal').addEventListener('click', async () => {
+  if (!activeFileId) return;
+  const btn = document.getElementById('btn-heal');
+  btn.disabled = true;
+  btn.textContent = '⟳ Healing…';
+  try {
+    const r = await fetch('/api/heal', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({file_id: activeFileId})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Heal failed');
+    healedFileId = d.healed_file_id;
+
+    // Show after-heal stats
+    document.getElementById('heal-result').innerHTML =
+      healRows(d, 'After heal');
+    document.getElementById('heal-result').style.display = '';
+    btn.textContent = '✓ Healed — reloading…';
+
+    // Fetch the healed STL binary and reload it into the Three.js viewer
+    const buf = await (await fetch(`/api/upload/${healedFileId}/stl`)).arrayBuffer();
+    const healedGeo = stlLoader.parse(buf);
+    computeHardEdgeNormals(healedGeo, 30);
+    let geo = mergeVertices(healedGeo, 1e-4);
+
+    // Find active file entry so we swap geometry on the right meshes
+    const activeEntry = files.find(f => f.id === activeFileId);
+    const targetFillM = activeEntry ? activeEntry.fillMesh : stlFillM;
+    const targetStlG  = activeEntry ? activeEntry.stlGroup : stlG;
+
+    // Swap geometry on the existing fill mesh so camera / groups stay intact
+    targetFillM.geometry.dispose();
+    targetFillM.geometry = geo;
+    if (activeEntry) activeEntry.fillMesh.geometry = geo;
+
+    // Rebuild edge overlay
+    targetStlG.children.forEach(c => { if (c.isLineSegments) { c.geometry.dispose(); targetStlG.remove(c); } });
+    const eGeo  = new THREE.EdgesGeometry(geo, 20);
+    const eMesh = new THREE.LineSegments(eGeo, new THREE.LineBasicMaterial({ color: 0x8b949e, transparent: true, opacity: 0.7 }));
+    eMesh.visible = !wireframeMode;
+    targetStlG.add(eMesh);
+    if (activeEntry) activeEntry.edgeMesh = eMesh;
+
+    applyWireframe(targetFillM, wireframeMode);
+    const healAllBox = new THREE.Box3();
+    for (const f of files) { if (f.stlGroup && f.visible) healAllBox.expandByObject(f.stlGroup); }
+    if (healAllBox.isEmpty()) healAllBox.setFromObject(targetStlG);
+    fitCamera(healAllBox);
+    updateZRange(healAllBox);
+
+    btn.textContent = '✓ Healed';
+    toast(d.is_watertight ? 'Mesh healed — now watertight ✓' : 'Healed (not fully watertight)');
+  } catch(e) {
+    toast('Heal error: ' + e.message);
+    btn.textContent = '⚠ Heal Mesh';
+    btn.disabled = false;
+  }
+});
+
+// ─── Slice ────────────────────────────────────────────────────
+let sliceG = null;
+document.getElementById('btn-slice').addEventListener('click', async () => {
+  if (!activeFileId) return;
+  const z = parseFloat(zInput.value);
+  if (isNaN(z)) { toast('Enter a Z value'); return; }
+  try {
+    const r = await fetch('/api/slice', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({file_id: activeFileId, z})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Slice failed');
+
+    if (sliceG) {
+      scene.remove(sliceG);
+      sliceG.traverse(c => { if (c.geometry) c.geometry.dispose(); });
+      sliceG = null;
+    }
+
+    if (!d.contours || d.contours.length === 0) {
+      toast(`No contours at Z=${z.toFixed(3)}  (range ${d.z_min?.toFixed(3)} – ${d.z_max?.toFixed(3)})`);
+      return;
+    }
+
+    sliceG = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({color: 0xffff00});
+    for (const contour of d.contours) {
+      if (contour.length < 2) continue;
+      const pts = new Float32Array(contour.length * 3);
+      contour.forEach(([x, y], i) => { pts[i*3]=x; pts[i*3+1]=y; pts[i*3+2]=d.z_level; });
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+      sliceG.add(new THREE.LineLoop(g, mat.clone()));
+    }
+    scene.add(sliceG);
+    toast(`Z=${z.toFixed(3)}: ${d.contours.length} contour${d.contours.length > 1 ? 's' : ''}`);
+  } catch(e) {
+    toast('Slice error: ' + e.message);
+  }
+});
+
+// ─── Curvature ────────────────────────────────────────────────
+let curvG = null;
+let curvOn = false;
+document.getElementById('btn-curv').addEventListener('click', async () => {
+  if (!activeFileId) return;
+  if (curvOn) {
+    if (curvG) { scene.remove(curvG); curvG.traverse(c=>{if(c.geometry)c.geometry.dispose();}); curvG=null; }
+    curvOn = false;
+    document.getElementById('btn-curv').classList.remove('active');
+    document.getElementById('btn-curv').textContent = '🌈 Curvature Heatmap';
+    return;
+  }
+  const btn = document.getElementById('btn-curv');
+  btn.disabled = true;
+  btn.textContent = '⟳ Computing…';
+  try {
+    const r = await fetch(`/api/curvature/${activeFileId}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Curvature failed');
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(d.positions), 3));
+    geo.setAttribute('color',    new THREE.BufferAttribute(new Float32Array(d.colors),    3));
+
+    curvG = new THREE.Points(geo, new THREE.PointsMaterial({
+      size: mScale * 0.004,
+      vertexColors: true,
+      sizeAttenuation: true,
+    }));
+    scene.add(curvG);
+    curvOn = true;
+    btn.classList.add('active');
+    btn.textContent = '■ Hide Curvature';
+
+    const div = document.getElementById('curv-result');
+    div.innerHTML = `Min H: <b>${d.min_h.toExponential(3)}</b>  &nbsp; Max H: <b>${d.max_h.toExponential(3)}</b>`;
+    div.style.display = '';
+  } catch(e) {
+    toast('Curvature error: ' + e.message);
+    btn.textContent = '🌈 Curvature Heatmap';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ─── Export ───────────────────────────────────────────────────
+function doExport(format) {
+  const id = healedFileId || activeFileId;
+  if (!id) { toast('Upload a file first'); return; }
+  const a = document.createElement('a');
+  a.href = `/api/export/${id}/${format}`;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+document.getElementById('exp-stl').addEventListener('click',  () => doExport('stl'));
+document.getElementById('exp-obj').addEventListener('click',  () => doExport('obj'));
+document.getElementById('exp-ply').addEventListener('click',  () => doExport('ply'));
+document.getElementById('exp-step').addEventListener('click', () => doExport('step'));
+
+// ─── Scene panel ──────────────────────────────────────────────
+function makeDraggable(panel, handle) {
+  let ox=0,oy=0,startX=0,startY=0;
+  handle.addEventListener('mousedown', e=>{
+    startX=e.clientX; startY=e.clientY;
+    ox=panel.offsetLeft; oy=panel.offsetTop;
+    const onMove=e=>{
+      panel.style.left=(ox+e.clientX-startX)+'px';
+      panel.style.top=(oy+e.clientY-startY)+'px';
+      panel.style.right='auto'; panel.style.bottom='auto';
+    };
+    const onUp=()=>{ document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); };
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+    e.preventDefault();
+  });
+}
+
+function refreshScenePanel() {
+  document.getElementById('scene-count').textContent = `(${files.length} item${files.length!==1?'s':''})`;
+  const list = document.getElementById('scene-list');
+  if (!files.length) { list.innerHTML='<div class="scene-empty">No files loaded</div>'; return; }
+  list.innerHTML = files.map(f=>`
+    <div class="scene-item${f.id===activeFileId?' active':''}" data-id="${f.id}">
+      <span class="scene-name" title="${f.filename}">${f.filename}</span>
+      <span class="scene-tris">${f.triCount.toLocaleString()}&#9650;</span>
+      <button class="scene-btn" data-action="vis" data-id="${f.id}" title="Toggle visibility">${f.visible?'&#128065;':'&#128683;'}</button>
+      <button class="scene-btn" data-action="del" data-id="${f.id}" title="Remove">&#10005;</button>
+    </div>`).join('');
+
+  list.querySelectorAll('.scene-item').forEach(el=>{
+    el.addEventListener('click', e=>{
+      if(e.target.dataset.action) return;
+      setActiveFile(el.dataset.id);
+    });
+  });
+  list.querySelectorAll('[data-action="vis"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{ e.stopPropagation(); toggleFileVisibility(btn.dataset.id); });
+  });
+  list.querySelectorAll('[data-action="del"]').forEach(btn=>{
+    btn.addEventListener('click', e=>{ e.stopPropagation(); removeFile(btn.dataset.id); });
+  });
+}
+
+function setActiveFile(id) {
+  activeFileId = id;
+  refreshScenePanel();
+  const f = files.find(f=>f.id===id);
+  if (f) {
+    document.getElementById('sec-tools').style.display='';
+    document.getElementById('sec-vis').style.display='';
+    showHealBefore(f.fillMesh.geometry);
+  }
+}
+
+function toggleFileVisibility(id) {
+  const f = files.find(f=>f.id===id);
+  if (!f) return;
+  f.visible = !f.visible;
+  f.stlGroup.visible = f.visible;
+  refreshScenePanel();
+}
+
+function removeFile(id) {
+  const idx = files.findIndex(f=>f.id===id);
+  if (idx===-1) return;
+  const f = files[idx];
+  // Remove from pickable list
+  pickable = pickable.filter(p => p !== f.fillMesh);
+  disposeGrp(f.stlGroup);
+  files.splice(idx,1);
+  fetch(`/api/upload/${id}`, {method:'DELETE'}).catch(()=>{});
+  if (activeFileId===id) {
+    activeFileId = files.length ? files[files.length-1].id : null;
+    if (!activeFileId) {
+      document.getElementById('sec-tools').style.display='none';
+      document.getElementById('sec-vis').style.display='none';
+    }
+  }
+  refreshScenePanel();
+}
+
+document.getElementById('btn-delete-active').addEventListener('click', () => {
+  if (activeFileId) removeFile(activeFileId);
+});
+document.getElementById('btn-rename-active').addEventListener('click', () => {
+  const f = files.find(f => f.id === activeFileId);
+  if (!f) return;
+  const name = prompt('Rename object:', f.filename);
+  if (name && name.trim()) { f.filename = name.trim(); refreshScenePanel(); toast('Renamed'); }
+});
+
+// Init draggable and initial panel state
+makeDraggable(document.getElementById('scene-panel'), document.getElementById('scene-header'));
+refreshScenePanel();
+
+// ── Context Menu ──────────────────────────────────────────────────────────────
+const ctxMenu = (() => {
+  const el = document.createElement('div');
+  el.id = 'ctx-menu';
+  el.innerHTML = `
+    <div class="ctx-label"></div>
+    <div class="ctx-sep"></div>
+    <button data-action="focus"><span class="ctx-ico">⊙</span>Focus Camera</button>
+    <button data-action="isolate"><span class="ctx-ico">◈</span>Isolate</button>
+    <button data-action="vis"><span class="ctx-ico">👁</span>Hide</button>
+    <button data-action="active"><span class="ctx-ico">★</span>Set Active</button>
+    <div class="ctx-sep"></div>
+    <button data-action="export"><span class="ctx-ico">↓</span>Export STL</button>
+    <button data-action="rename"><span class="ctx-ico">✎</span>Rename…</button>
+    <div class="ctx-sep"></div>
+    <button data-action="delete" class="ctx-danger"><span class="ctx-ico">✕</span>Delete</button>
+  `;
+  document.body.appendChild(el);
+
+  let targetId = null;
+
+  function show(x, y, fileId) {
+    targetId = fileId;
+    const f = files.find(f => f.id === fileId);
+    el.querySelector('.ctx-label').textContent = f ? f.filename : 'Object';
+    el.querySelector('[data-action="vis"]').childNodes[1].textContent = (f?.visible ? 'Hide' : 'Show');
+    const isIsolated = files.length > 1 && files.some(f2 => f2.id !== fileId && !f2.visible);
+    el.querySelector('[data-action="isolate"]').childNodes[1].textContent = isIsolated ? 'Un-isolate' : 'Isolate';
+
+    el.style.display = 'block';
+    // Prevent going off-screen
+    const mw = el.offsetWidth || 192, mh = el.offsetHeight || 280;
+    el.style.left = Math.min(x, window.innerWidth  - mw - 6) + 'px';
+    el.style.top  = Math.min(y, window.innerHeight - mh - 6) + 'px';
+  }
+
+  function hide() { el.style.display = 'none'; targetId = null; }
+
+  el.addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const id = targetId;
+    hide();
+    if (!id) return;
+    const f = files.find(f => f.id === id);
+    if (!f) return;
+
+    if (action === 'delete') {
+      removeFile(id);
+    } else if (action === 'focus') {
+      const box = new THREE.Box3().setFromObject(f.stlGroup);
+      fitCamera(box); updateZRange(box);
+      toast('Camera focused on ' + f.filename);
+    } else if (action === 'isolate') {
+      const isIsolated = files.length > 1 && files.some(f2 => f2.id !== id && !f2.visible);
+      if (isIsolated) {
+        files.forEach(f2 => { f2.visible = true; f2.stlGroup.visible = true; });
+        toast('Un-isolated');
+      } else {
+        files.forEach(f2 => { const v = f2.id === id; f2.visible = v; f2.stlGroup.visible = v; });
+        toast('Isolated: ' + f.filename);
+      }
+      refreshScenePanel();
+    } else if (action === 'vis') {
+      toggleFileVisibility(id);
+    } else if (action === 'active') {
+      setActiveFile(id);
+      toast('Active: ' + f.filename);
+    } else if (action === 'export') {
+      fetch(`/api/upload/${id}/stl`)
+        .then(r => { if(!r.ok) throw new Error(r.status); return r.blob(); })
+        .then(blob => {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = f.filename.match(/\.stl$/i) ? f.filename : f.filename + '.stl';
+          a.click(); URL.revokeObjectURL(a.href);
+        })
+        .catch(() => toast('Export failed'));
+    } else if (action === 'rename') {
+      const name = prompt('Rename "' + f.filename + '":', f.filename);
+      if (name && name.trim()) { f.filename = name.trim(); refreshScenePanel(); toast('Renamed'); }
+    }
+  });
+
+  // Dismiss on outside click or Escape
+  document.addEventListener('pointerdown', e => { if (!el.contains(e.target)) hide(); }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+
+  return { show, hide };
+})();
+
+// ── Hard-edge normal splitting ────────────────────────────────────────────────
+// For each triangle corner, average the geometric normals of all adjacent
+// triangles that meet at an angle < threshDeg ("soft" neighbors).
+// Triangles meeting at a larger angle are on different faces and NOT averaged.
+// The result: box face edges (90°) stay sharp, sphere surface smooths correctly.
+// Sets per-vertex normals on rawGeo in-place (NON-indexed, preserves raw tri indices).
+// Flat-face triangles (C++ normal > 0.998 axis-aligned) → exact axis normal on all 3 verts.
+// Sphere/junction triangles → averaged with 30° neighbors for smooth shading.
+// Does NOT call mergeVertices — raw tri index == STL tri index == raycaster faceIndex.
+function prepareBooleanNormals(rawGeo) {
+  const pos      = rawGeo.attributes.position;
+  const stlNorm  = rawGeo.attributes.normal;
+  const N        = pos.count;
+  const nTri     = N / 3;
+  const Q        = 1e5;
+  const cosSmooth = Math.cos(30 * Math.PI / 180);
+  const FLAT_THR  = 0.998;
+
+  const triN   = new Array(nTri);
+  const isFlat = new Uint8Array(nTri);
+  const axisN  = new Array(nTri);
+
+  for (let t = 0; t < nTri; t++) {
+    const nx = stlNorm.getX(t*3), ny = stlNorm.getY(t*3), nz = stlNorm.getZ(t*3);
+    triN[t] = new THREE.Vector3(nx, ny, nz);
+    const ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
+    const m  = Math.max(ax, ay, az);
+    if (m > FLAT_THR) {
+      isFlat[t] = 1;
+      if (ax >= ay && ax >= az)      axisN[t] = new THREE.Vector3(Math.sign(nx), 0, 0);
+      else if (ay >= ax && ay >= az) axisN[t] = new THREE.Vector3(0, Math.sign(ny), 0);
+      else                           axisN[t] = new THREE.Vector3(0, 0, Math.sign(nz));
+    }
+  }
+
+  // Position hash for sphere-surface smoothing (non-flat triangles only)
+  const posMap = new Map();
+  for (let t = 0; t < nTri; t++) {
+    if (isFlat[t]) continue;
+    for (let v = 0; v < 3; v++) {
+      const vi = t*3 + v;
+      const k = `${Math.round(pos.getX(vi)*Q)},${Math.round(pos.getY(vi)*Q)},${Math.round(pos.getZ(vi)*Q)}`;
+      const arr = posMap.get(k); if (arr) arr.push(t); else posMap.set(k, [t]);
+    }
+  }
+
+  const normals = new Float32Array(N * 3);
+  for (let t = 0; t < nTri; t++) {
+    for (let v = 0; v < 3; v++) {
+      const vi = t*3 + v;
+      let nx, ny, nz;
+      if (isFlat[t]) {
+        nx = axisN[t].x; ny = axisN[t].y; nz = axisN[t].z;
+      } else {
+        const k = `${Math.round(pos.getX(vi)*Q)},${Math.round(pos.getY(vi)*Q)},${Math.round(pos.getZ(vi)*Q)}`;
+        const acc = triN[t].clone();
+        for (const nt of (posMap.get(k) || [])) {
+          if (nt !== t && !isFlat[nt] && triN[t].dot(triN[nt]) >= cosSmooth) acc.add(triN[nt]);
+        }
+        acc.normalize();
+        nx = acc.x; ny = acc.y; nz = acc.z;
+      }
+      normals[vi*3]   = nx;
+      normals[vi*3+1] = ny;
+      normals[vi*3+2] = nz;
+    }
+  }
+  rawGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  return rawGeo; // still non-indexed
+}
+
+// Classify each raw STL triangle into one of 7 face groups using C++ normals.
+// No BFS, no adjacency — direct normal lookup. Gives exactly 6 flat faces + 1 crater.
+// faceIndex from raycaster on non-indexed geo == raw triangle index == row here.
+function computeRawFaceGroups(rawGeo) {
+  const stlNorm = rawGeo.attributes.normal;
+  const nTri    = stlNorm.count / 3;
+  const FLAT_THR = 0.998;
+  const KEYS = ['+x','-x','+y','-y','+z','-z','sphere'];
+  const keyGid = new Map(KEYS.map((k,i) => [k,i]));
+  const groups = KEYS.map(() => []);
+  const groupOf = new Int32Array(nTri);
+  for (let t = 0; t < nTri; t++) {
+    const nx=stlNorm.getX(t*3), ny=stlNorm.getY(t*3), nz=stlNorm.getZ(t*3);
+    const ax=Math.abs(nx), ay=Math.abs(ny), az=Math.abs(nz), m=Math.max(ax,ay,az);
+    let key = 'sphere';
+    if (m > FLAT_THR) {
+      if (ax>=ay&&ax>=az) key = nx>0?'+x':'-x';
+      else if (ay>=az)    key = ny>0?'+y':'-y';
+      else                key = nz>0?'+z':'-z';
+    }
+    const gid = keyGid.get(key);
+    groupOf[t] = gid; groups[gid].push(t);
+  }
+  // Remove empty groups, remap IDs
+  const valid=[]; const remap=new Int32Array(7).fill(-1);
+  for (let i=0;i<7;i++) { if(groups[i].length>0){remap[i]=valid.length;valid.push(groups[i]);} }
+  return { groups: valid, groupOf: groupOf.map(g => remap[g]>=0?remap[g]:0) };
+}
+
+// After this, mergeVertices will share vertices at soft edges and split them at
+// hard edges — giving a correctly-indexed geometry with no shading bleed.
+function computeHardEdgeNormals(rawGeo, threshDeg = 30) {
+  const pos = rawGeo.attributes.position;
+  const N   = pos.count;      // total corners = nTri * 3
+  const nTri = N / 3;
+  const cosT = Math.cos(threshDeg * Math.PI / 180);
+  const Q = 1e5;              // quantisation precision
+
+  // Per-triangle geometric normals (computed from positions, not STL stored normals)
+  const triN = new Array(nTri);
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
+  for (let t = 0; t < nTri; t++) {
+    _a.fromBufferAttribute(pos, t*3);
+    _b.fromBufferAttribute(pos, t*3+1);
+    _c.fromBufferAttribute(pos, t*3+2);
+    triN[t] = new THREE.Vector3()
+      .crossVectors(_b.clone().sub(_a), _c.clone().sub(_a))
+      .normalize();
+  }
+
+  // Position hash → list of triangle indices that share that position
+  const posMap = new Map();
+  for (let t = 0; t < nTri; t++) {
+    for (let v = 0; v < 3; v++) {
+      const vi = t*3 + v;
+      const k = `${Math.round(pos.getX(vi)*Q)},${Math.round(pos.getY(vi)*Q)},${Math.round(pos.getZ(vi)*Q)}`;
+      const arr = posMap.get(k);
+      if (arr) arr.push(t); else posMap.set(k, [t]);
+    }
+  }
+
+  // Build output normal array: for each corner, sum normals of soft neighbors
+  const normals = new Float32Array(N * 3);
+  for (let t = 0; t < nTri; t++) {
+    for (let v = 0; v < 3; v++) {
+      const vi = t*3 + v;
+      const k  = `${Math.round(pos.getX(vi)*Q)},${Math.round(pos.getY(vi)*Q)},${Math.round(pos.getZ(vi)*Q)}`;
+      const acc = triN[t].clone();
+      for (const nt of (posMap.get(k) || [])) {
+        if (nt !== t && triN[t].dot(triN[nt]) >= cosT) acc.add(triN[nt]);
+      }
+      acc.normalize();
+      normals[vi*3]   = acc.x;
+      normals[vi*3+1] = acc.y;
+      normals[vi*3+2] = acc.z;
+    }
+  }
+  rawGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  return rawGeo;
+}
+
+// ── Per-mesh face grouping (BFS on coplanar adjacent triangles) ──────────────
+function computeFaceGroupsForGeo(geo) {
+  if (!geo.index) return null;                     // must be indexed
+  const idx = geo.index, pos = geo.attributes.position;
+  const nTri = idx.count / 3;
+  if (nTri > 200000) return null;                  // skip for huge meshes
+
+  // Triangle face normals
+  const triN = [];
+  for (let i = 0; i < nTri; i++) {
+    const ia=idx.getX(i*3), ib=idx.getX(i*3+1), ic=idx.getX(i*3+2);
+    const va=new THREE.Vector3().fromBufferAttribute(pos,ia);
+    const vb=new THREE.Vector3().fromBufferAttribute(pos,ib);
+    const vc=new THREE.Vector3().fromBufferAttribute(pos,ic);
+    triN.push(new THREE.Vector3().crossVectors(
+      new THREE.Vector3().subVectors(vb,va),
+      new THREE.Vector3().subVectors(vc,va)).normalize());
+  }
+
+  // Edge → triangle list
+  const edgeMap = new Map();
+  const addE = (v0,v1,ti) => {
+    const k = v0<v1?`${v0}|${v1}`:`${v1}|${v0}`;
+    const a = edgeMap.get(k); if(a) a.push(ti); else edgeMap.set(k,[ti]);
+  };
+  for (let i=0;i<nTri;i++){
+    const a=idx.getX(i*3),b=idx.getX(i*3+1),c=idx.getX(i*3+2);
+    addE(a,b,i); addE(b,c,i); addE(a,c,i);
+  }
+
+  // BFS — group triangles whose normals agree within 30°
+  const COS30 = Math.cos(30*Math.PI/180);
+  const groupOf = new Int32Array(nTri).fill(-1);
+  const groups = [];
+  for (let s=0;s<nTri;s++){
+    if (groupOf[s]!==-1) continue;
+    const gid=groups.length, grp=[], q=[s];
+    groupOf[s]=gid;
+    while(q.length){
+      const ti=q.pop(); grp.push(ti);
+      const a=idx.getX(ti*3),b=idx.getX(ti*3+1),c=idx.getX(ti*3+2);
+      for(const [v0,v1] of [[a,b],[b,c],[a,c]]){
+        const k=v0<v1?`${v0}|${v1}`:`${v1}|${v0}`;
+        for(const ni of (edgeMap.get(k)||[])){
+          if(groupOf[ni]!==-1) continue;
+          if(triN[ti].dot(triN[ni])>=COS30){ groupOf[ni]=gid; q.push(ni); }
+        }
+      }
+    }
+    groups.push(grp);
+  }
+  return {groups, groupOf};
+}
+
+// ─── Primitives & Boolean ─────────────────────────────────────────────────────
+
+const primState = { cube: null, sphere: null };
+
+function checkSubtractEnabled() {
+  document.getElementById('btn-subtract').disabled = !(primState.cube && primState.sphere);
+}
+
+['cube','sphere'].forEach(name => {
+  document.getElementById('btn-'+name+'-toggle').addEventListener('click', () => {
+    const panel  = document.getElementById(name+'-panel');
+    const toggle = document.getElementById('btn-'+name+'-toggle');
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    toggle.classList.toggle('open', !isOpen);
+  });
+});
+
+// Auto-snap sphere to nearest cube corner when cube params change
+function snapSphereToNearestCorner() {
+  const cx = +document.getElementById('cube-cx').value;
+  const cy = +document.getElementById('cube-cy').value;
+  const cz = +document.getElementById('cube-cz').value;
+  const hx = +document.getElementById('cube-hx').value;
+  const hy = +document.getElementById('cube-hy').value;
+  const hz = +document.getElementById('cube-hz').value;
+  const scx = +document.getElementById('sph-cx').value;
+  const scy = +document.getElementById('sph-cy').value;
+  const scz = +document.getElementById('sph-cz').value;
+
+  // 8 corners of the cube
+  let best = null, bestDist = Infinity;
+  for (const sx of [-1,1]) for (const sy of [-1,1]) for (const sz of [-1,1]) {
+    const nx = cx + sx*hx, ny = cy + sy*hy, nz = cz + sz*hz;
+    const d = Math.hypot(nx-scx, ny-scy, nz-scz);
+    if (d < bestDist) { bestDist = d; best = [nx, ny, nz]; }
+  }
+
+  document.getElementById('sph-cx').value = best[0].toFixed(4);
+  document.getElementById('sph-cy').value = best[1].toFixed(4);
+  document.getElementById('sph-cz').value = best[2].toFixed(4);
+
+  // Scale radius proportionally to cube size (60% of smallest half-extent)
+  const r = (Math.min(hx, hy, hz) * 0.6).toFixed(4);
+  document.getElementById('sph-rx').value = r;
+  document.getElementById('sph-ry').value = r;
+  document.getElementById('sph-rz').value = r;
+}
+
+['cube-cx','cube-cy','cube-cz','cube-hx','cube-hy','cube-hz'].forEach(id => {
+  document.getElementById(id).addEventListener('input', snapSphereToNearestCorner);
+});
+
+// Run once on load so the sphere starts at the cube corner
+snapSphereToNearestCorner();
+
+async function loadSTLIntoScene(fileId, edgeColor, booleanResult = false, boxParams = null) {
+  const buf = await (await fetch('/api/upload/'+fileId+'/stl')).arrayBuffer();
+  const rawGeo = stlLoader.parse(buf);
+  let geo, fgd;
+  if (booleanResult) {
+    // Keep raw non-indexed geometry — preserves raw triangle indices so
+    // raycaster faceIndex == STL triangle index == row in computeRawFaceGroups.
+    // Face groups come from C++ STL normals directly (no BFS, no adjacency issues).
+    prepareBooleanNormals(rawGeo);   // smooth sphere + exact axis normals for flat faces
+    geo = rawGeo;
+    fgd = computeRawFaceGroups(rawGeo);
+    // Build edge geometry from a separate merged clone (raw geo can't do EdgesGeometry well)
+    const edgeClone = mergeVertices(rawGeo.clone(), 1e-4);
+    const fillMesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+      color: modelColor(), transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+    }));
+    fillMesh._baseOpacity = 0.5;
+    if (fgd) { fillMesh._faceGroups = fgd.groups; fillMesh._triToGroup = fgd.groupOf; }
+    const eGeo = new THREE.EdgesGeometry(edgeClone, 25);
+    const edgeMesh = new THREE.LineSegments(eGeo, new THREE.LineBasicMaterial({
+      color: edgeColor, transparent: true, opacity: 0.55,
+    }));
+    const grp = new THREE.Group();
+    grp.add(fillMesh, edgeMesh);
+    scene.add(grp);
+    pickable.push(fillMesh);
+    applyWireframe(fillMesh, wireframeMode);
+    edgeMesh.visible = !wireframeMode;
+    const allBox = new THREE.Box3();
+    for (const f of files) { if (f.stlGroup && f.visible) allBox.expandByObject(f.stlGroup); }
+    allBox.expandByObject(grp);
+    fitCamera(allBox); updateZRange(allBox);
+    stlG = grp; stlFillM = fillMesh;
+    return { stlGroup: grp, fillMesh, edgeMesh, geo };
+  }
+  computeHardEdgeNormals(rawGeo, 30);
+  geo = mergeVertices(rawGeo, 1e-4);
+  const fillMesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+    color: modelColor(), transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+  }));
+  fillMesh._baseOpacity = 0.5;
+  const eGeo = new THREE.EdgesGeometry(geo, 20);
+  const edgeMesh = new THREE.LineSegments(eGeo, new THREE.LineBasicMaterial({
+    color: edgeColor, transparent: true, opacity: 0.75,
+  }));
+  const grp = new THREE.Group();
+  grp.add(fillMesh, edgeMesh);
+  scene.add(grp);
+  pickable.push(fillMesh);
+  applyWireframe(fillMesh, wireframeMode);
+  edgeMesh.visible = !wireframeMode;
+  const allBox = new THREE.Box3();
+  for (const f of files) { if (f.stlGroup && f.visible) allBox.expandByObject(f.stlGroup); }
+  allBox.expandByObject(grp);
+  fitCamera(allBox); updateZRange(allBox);
+  fgd = computeFaceGroupsForGeo(geo);
+  if (fgd) { fillMesh._faceGroups=fgd.groups; fillMesh._triToGroup=fgd.groupOf; }
+  stlG = grp; stlFillM = fillMesh;
+  return { stlGroup: grp, fillMesh, edgeMesh, geo };
+}
+
+async function loadBoxIntoScene(fileId, cx, cy, cz, hx, hy, hz) {
+  const geo = new THREE.BoxGeometry(2*hx, 2*hy, 2*hz);
+  geo.translate(cx, cy, cz);
+  const fillMesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+    color: modelColor(), transparent: true, opacity: 0.5, side: THREE.DoubleSide,
+  }));
+  fillMesh._baseOpacity = 0.5;
+  fillMesh._boxFaceCount = 6;
+  const eGeo = new THREE.EdgesGeometry(geo, 1);
+  const edgeMesh = new THREE.LineSegments(eGeo, new THREE.LineBasicMaterial({color:0x8b949e, transparent:true, opacity:0.75}));
+  const grp = new THREE.Group();
+  grp.add(fillMesh, edgeMesh);
+  scene.add(grp);
+  pickable.push(fillMesh);
+  applyWireframe(fillMesh, wireframeMode);
+  edgeMesh.visible = !wireframeMode;
+  const allBox = new THREE.Box3();
+  for (const f of files) { if (f.stlGroup && f.visible) allBox.expandByObject(f.stlGroup); }
+  allBox.expandByObject(grp);
+  fitCamera(allBox); updateZRange(allBox);
+  const fgd3 = computeFaceGroupsForGeo(geo);
+  if (fgd3) { fillMesh._faceGroups=fgd3.groups; fillMesh._triToGroup=fgd3.groupOf; }
+  stlG = grp; stlFillM = fillMesh;
+  return { stlGroup: grp, fillMesh, edgeMesh, geo };
+}
+
+function primReadyUI(label, triCount, geo) {
+  badge.innerHTML = '<b>'+label+'</b> &mdash; '+triCount.toLocaleString()+' triangles';
+  document.getElementById('btngen').disabled = false;
+  document.getElementById('sec-tools').style.display = '';
+  document.getElementById('sec-vis').style.display   = '';
+  document.getElementById('wel').classList.add('gone');
+  showHealBefore(geo);
+}
+
+// ── Add Cube ──
+document.getElementById('btn-add-cube').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-add-cube');
+  btn.disabled = true; btn.textContent = 'Loading...';
+  try {
+    const cx=+document.getElementById('cube-cx').value, cy=+document.getElementById('cube-cy').value, cz=+document.getElementById('cube-cz').value;
+    const hx=+document.getElementById('cube-hx').value, hy=+document.getElementById('cube-hy').value, hz=+document.getElementById('cube-hz').value;
+    const r = await fetch('/api/primitives/box',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cx,cy,cz,hx,hy,hz})});
+    if(!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    if(primState.cube) removeFile(primState.cube);
+    primState.cube = d.file_id;
+    const {stlGroup,fillMesh,edgeMesh,geo} = await loadBoxIntoScene(d.file_id, cx, cy, cz, hx, hy, hz);
+    files.push({id:d.file_id,filename:'Cube',triCount:d.triangle_count,stlGroup,fillMesh,edgeMesh,visible:true});
+    activeFileId = d.file_id;
+    primReadyUI('Cube', d.triangle_count, geo);
+    refreshScenePanel();
+    document.getElementById('cube-tag').style.display='';
+    checkSubtractEnabled();
+    toast('Cube added');
+  } catch(e){ toast('Cube error: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent='Add Cube to Scene'; }
+});
+
+// ── Add Sphere ──
+document.getElementById('btn-add-sphere').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-add-sphere');
+  btn.disabled = true; btn.textContent = 'Loading...';
+  try {
+    const cx=+document.getElementById('sph-cx').value, cy=+document.getElementById('sph-cy').value, cz=+document.getElementById('sph-cz').value;
+    const rx=+document.getElementById('sph-rx').value, ry=+document.getElementById('sph-ry').value, rz=+document.getElementById('sph-rz').value;
+    const r = await fetch('/api/primitives/sphere',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cx,cy,cz,rx,ry,rz,res:32})});
+    if(!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    if(primState.sphere) removeFile(primState.sphere);
+    primState.sphere = d.file_id;
+    const {stlGroup,fillMesh,edgeMesh,geo} = await loadSTLIntoScene(d.file_id, 0x55aaff);
+    files.push({id:d.file_id,filename:'Sphere',triCount:d.triangle_count,stlGroup,fillMesh,edgeMesh,visible:true});
+    activeFileId = d.file_id;
+    primReadyUI('Sphere', d.triangle_count, geo);
+    refreshScenePanel();
+    document.getElementById('sphere-tag').style.display='';
+    checkSubtractEnabled();
+    toast('Sphere added');
+  } catch(e){ toast('Sphere error: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent='Add Sphere to Scene'; }
+});
+
+// ── Resolution slider live label ──
+document.getElementById('bool-res').addEventListener('input', function() {
+  document.getElementById('bool-res-val').textContent = this.value;
+});
+
+// ── Subtract ──
+document.getElementById('btn-subtract').addEventListener('click', async () => {
+  if(!primState.cube||!primState.sphere){ toast('Add both a Cube and Sphere first'); return; }
+  const btn = document.getElementById('btn-subtract');
+  const resDiv = document.getElementById('bool-result');
+  btn.disabled=true; btn.textContent='Computing...';
+  resDiv.style.display='none';
+  const resolution = +document.getElementById('bool-res').value;
+  showLD(0.1,`Boolean subtract — marching cubes SDF (res ${resolution})...`,'C++ engine');
+  try {
+    const bcx=+document.getElementById('cube-cx').value,bcy=+document.getElementById('cube-cy').value,bcz=+document.getElementById('cube-cz').value;
+    const bhx=+document.getElementById('cube-hx').value,bhy=+document.getElementById('cube-hy').value,bhz=+document.getElementById('cube-hz').value;
+    const scx=+document.getElementById('sph-cx').value, scy=+document.getElementById('sph-cy').value, scz=+document.getElementById('sph-cz').value;
+    const srx=+document.getElementById('sph-rx').value, sry=+document.getElementById('sph-ry').value, srz=+document.getElementById('sph-rz').value;
+    const r = await fetch('/api/boolean/subtract',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({bcx,bcy,bcz,bhx,bhy,bhz,scx,scy,scz,srx,sry,srz,resolution})});
+    if(!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    hideLD();
+    if (primState.cube) { removeFile(primState.cube); primState.cube = null; }
+    if (primState.sphere) { removeFile(primState.sphere); primState.sphere = null; }
+    document.getElementById('cube-tag').style.display='none';
+    document.getElementById('sphere-tag').style.display='none';
+    const boxParams = {cx:bcx, cy:bcy, cz:bcz, hx:bhx, hy:bhy, hz:bhz};
+    const {stlGroup,fillMesh,edgeMesh,geo} = await loadSTLIntoScene(d.file_id, 0x55aaff, true, boxParams);
+    files.push({id:d.file_id,filename:'Cube - Sphere',triCount:d.triangle_count,stlGroup,fillMesh,edgeMesh,visible:true});
+    activeFileId = d.file_id;
+    primState.cube = null;
+    primState.sphere = null;
+    primReadyUI('Boolean Subtract', d.triangle_count, geo);
+    refreshScenePanel();
+    resDiv.innerHTML='<span class="ok">&#10003; Surface mesh ready</span> &mdash; <b>'+d.triangle_count.toLocaleString()+'</b> triangles. Click Generate Mesh for CFD pipeline.';
+    resDiv.style.display='';
+    toast('Boolean subtract done');
+  } catch(e){
+    hideLD();
+    resDiv.innerHTML='<span class="err">Error: '+e.message+'</span>';
+    resDiv.style.display='';
+    toast('Subtract error: '+e.message);
+  } finally {
+    btn.disabled=!(primState.cube&&primState.sphere);
+    btn.textContent='- Subtract (Cube - Sphere)';
+  }
+});
+
+</script>
+</body>
+</html>
