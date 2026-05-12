@@ -1,22 +1,11 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { getSession, signOut, type User } from "@/lib/auth";
+import { signOut } from "@/lib/auth";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 
 export function SiteHeader() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    setUser(getSession());
-    const handler = () => setUser(getSession());
-    window.addEventListener("storage", handler);
-    window.addEventListener("mm-auth-change", handler);
-    return () => {
-      window.removeEventListener("storage", handler);
-      window.removeEventListener("mm-auth-change", handler);
-    };
-  }, []);
+  const { session, profile } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/70 backdrop-blur-xl">
@@ -36,23 +25,25 @@ export function SiteHeader() {
           <Link to="/" hash="features" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Features</Link>
           <Link to="/" hash="pipeline" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Pipeline</Link>
           <Link to="/upgrade" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Pricing</Link>
-          {user && (
+          {session && (
             <Link to="/app" className="text-sm text-muted-foreground transition-colors hover:text-foreground">Workbench</Link>
           )}
         </nav>
 
         <div className="flex items-center gap-2">
-          {user ? (
+          {session ? (
             <>
               <span className="hidden text-xs text-muted-foreground sm:inline">
-                {user.name} · <span className={user.plan === "premium" ? "text-accent" : "text-primary"}>{user.plan.toUpperCase()}</span>
+                {profile?.name ?? session.user.email} ·{" "}
+                <span className={profile?.plan === "premium" ? "text-accent" : "text-primary"}>
+                  {(profile?.plan ?? "free").toUpperCase()}
+                </span>
               </span>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  signOut();
-                  window.dispatchEvent(new Event("mm-auth-change"));
+                onClick={async () => {
+                  await signOut();
                   router.navigate({ to: "/" });
                 }}
               >

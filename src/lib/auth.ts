@@ -1,128 +1,87 @@
-// Simple client-side auth + plan tracking (demo).
-// NOTE: This is a presentation-only auth layer using localStorage.
+// Supabase-backed auth + plan tracking.
+import { supabase } from "@/integrations/supabase/client";
+import type { Session } from "@supabase/supabase-js";
+
 export type Plan = "free" | "premium";
-export interface User {
+export interface Profile {
+  id: string;
   email: string;
   name: string;
   plan: Plan;
+  import_count: number;
 }
 
-const USERS_KEY = "mm_users_v1";
-const SESSION_KEY = "mm_session_v1";
-const IMPORTS_KEY = "mm_import_count_v1";
 export const FREE_IMPORT_LIMIT = 3;
 
-interface StoredUser extends User {
-  password: string;
-}
+const SEED_EMAIL = "talhab@discreetize.com";
+const SEED_PASSWORD = "btalha18";
 
-const SEED_ACCOUNTS: StoredUser[] = [
-  { email: "talhab@discreetize.com", password: "btalha18", name: "Talha B.", plan: "premium" },
-  // alias for the originally-typed misspelling, just in case
-  { email: "talhab@dicreetize.com",  password: "btalha18", name: "Talha B.", plan: "premium" },
-];
+let seedAttempted = false;
 
-function seed() {
-  if (typeof window === "undefined") return;
-  let users: StoredUser[] = [];
-  try { users = JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); } catch { users = []; }
-  let changed = false;
-  for (const acct of SEED_ACCOUNTS) {
-    const i = users.findIndex((u) => u.email.toLowerCase() === acct.email.toLowerCase());
-    if (i === -1) { users.push(acct); changed = true; }
-    else if (users[i].password !== acct.password || users[i].plan !== acct.plan) {
-      users[i] = { ...users[i], ...acct }; changed = true;
-    }
-  }
-  if (changed) localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
-
-function readUsers(): StoredUser[] {
-  seed();
+/** Best-effort: ensures the demo Premium account exists. Safe to call repeatedly. */
+export async function ensureSeedAccount() {
+  if (seedAttempted || typeof window === "undefined") return;
+  seedAttempted = true;
   try {
-    return JSON.parse(localStorage.getItem(USERS_KEY) || "[]");
+    await supabase.auth.signUp({
+      email: SEED_EMAIL,
+      password: SEED_PASSWORD,
+      options: {
+        emailRedirectTo: `${window.location.origin}/app`,
+        data: { name: "Talha B." },
+      },
+    });
   } catch {
-    return [];
+    // ignore — already exists
   }
 }
 
-function writeUsers(u: StoredUser[]) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(u));
+export async function signUp(email: string, password: string, name: string) {
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/app`,
+      data: { name },
+    },
+  });
+  if (error) throw error;
 }
 
-export function signUp(email: string, password: string, name: string): User {
-  const users = readUsers();
-  if (users.find((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    throw new Error("An account with that email already exists.");
-  }
-  const u: StoredUser = { email, password, name, plan: "free" };
-  users.push(u);
-  writeUsers(users);
-  const pub: User = { email: u.email, name: u.name, plan: u.plan };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(pub));
-  return pub;
+export async function signIn(email: string, password: string) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
 }
 
-export function signIn(email: string, password: string): User {
-  const users = readUsers();
-  const u = users.find(
-    (x) => x.email.toLowerCase() === email.toLowerCase() && x.password === password,
-  );
-  if (!u) throw new Error("Invalid email or password.");
-  const pub: User = { email: u.email, name: u.name, plan: u.plan };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(pub));
-  return pub;
+export async function signOut() {
+  await supabase.auth.signOut();
 }
 
-export function signOut() {
-  localStorage.removeItem(SESSION_KEY);
+export async function getSession(): Promise<Session | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session;
 }
 
-export function getSession(): User | null {
-  if (typeof window === "undefined") return null;
-  seed();
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const pub: User = JSON.parse(raw);
-    // re-sync plan from users (in case upgraded)
-    const users = readUsers();
-    const fresh = users.find((u) => u.email === pub.email);
-    if (fresh) {
-      const refreshed: User = { email: fresh.email, name: fresh.name, plan: fresh.plan };
-      localStorage.setItem(SESSION_KEY, JSON.stringify(refreshed));
-      return refreshed;
-    }
-    return pub;
-  } catch {
+export async function getProfile(userId: string): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,email,name,plan,import_count")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) {
+    console.error("getProfile error", error);
     return null;
   }
+  return (data as Profile) ?? null;
 }
 
-export function upgradeCurrent(): User | null {
-  const sess = getSession();
-  if (!sess) return null;
-  const users = readUsers();
-  const idx = users.findIndex((u) => u.email === sess.email);
-  if (idx === -1) return null;
-  users[idx].plan = "premium";
-  writeUsers(users);
-  return getSession();
+export async function bumpImportCount(): Promise<number> {
+  const { data, error } = await supabase.rpc("bump_import");
+  if (error) throw error;
+  return data as number;
 }
 
-export function getImportCount(email: string): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const raw = JSON.parse(localStorage.getItem(IMPORTS_KEY) || "{}");
-    return raw[email] || 0;
-  } catch {
-    return 0;
-  }
-}
-
-export function bumpImportCount(email: string): number {
-  const raw = JSON.parse(localStorage.getItem(IMPORTS_KEY) || "{}");
-  raw[email] = (raw[email] || 0) + 1;
-  localStorage.setItem(IMPORTS_KEY, JSON.stringify(raw));
-  return raw[email];
+export async function upgradeCurrent(): Promise<void> {
+  const { error } = await supabase.rpc("upgrade_to_premium");
+  if (error) throw error;
 }
