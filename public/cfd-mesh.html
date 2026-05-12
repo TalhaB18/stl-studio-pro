@@ -1798,6 +1798,22 @@ filein.addEventListener('change', () => { if(filein.files[0]) go(filein.files[0]
 
 async function go(file) {
   if (!file.name.toLowerCase().endsWith('.stl')) { toast('Please select an STL file.'); return; }
+  // MeshMaster gating: notify parent and allow it to block free-tier overuse
+  try {
+    const allowed = await new Promise((resolve) => {
+      const id = Math.random().toString(36).slice(2);
+      const handler = (ev) => {
+        if (ev.data && ev.data.type === 'mm:stl-import-decision' && ev.data.id === id) {
+          window.removeEventListener('message', handler);
+          resolve(!!ev.data.allowed);
+        }
+      };
+      window.addEventListener('message', handler);
+      window.parent && window.parent.postMessage({ type: 'mm:stl-import-request', id, name: file.name }, '*');
+      setTimeout(() => { window.removeEventListener('message', handler); resolve(true); }, 800);
+    });
+    if (!allowed) { toast('Free-plan limit reached. Upgrade to continue.'); return; }
+  } catch {}
 
   // Reset scene-wide overlays only (not per-file STL groups)
   faceGroups = null; triangleToGroup = null; faceBoundaries = null;
