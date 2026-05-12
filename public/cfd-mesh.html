@@ -1184,6 +1184,37 @@ input[type=range]::-webkit-slider-thumb {
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}
 </script>
 <script type="module">
+// MeshMaster: stub backend so the viewer works standalone (no /api server here)
+(() => {
+  const origFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    const isUpload = url.startsWith('/api/upload') && !/\/faces$/.test(url);
+    if (isUpload) {
+      let tri = 0;
+      try {
+        const file = init && init.body && init.body.get && init.body.get('file');
+        if (file) {
+          const buf = await file.arrayBuffer();
+          if (buf.byteLength >= 84) {
+            const dv = new DataView(buf);
+            tri = dv.getUint32(80, true);
+            if (84 + tri * 50 !== buf.byteLength) {
+              const txt = new TextDecoder().decode(buf);
+              tri = (txt.match(/facet normal/gi) || []).length;
+            }
+          }
+        }
+      } catch {}
+      const body = JSON.stringify({ file_id: 'mm_' + Math.random().toString(36).slice(2, 10), triangle_count: tri });
+      return new Response(body, { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (url.startsWith('/api/')) {
+      return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
+    }
+    return origFetch(input, init);
+  };
+})();
 import * as THREE            from 'three';
 import { OrbitControls }     from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
