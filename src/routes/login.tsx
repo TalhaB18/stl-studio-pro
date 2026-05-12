@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
-import { signIn, signUp } from "@/lib/auth";
+import { useEffect, useState, type FormEvent } from "react";
+import { signIn, signUp, ensureSeedAccount } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,14 +24,17 @@ function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = (e: FormEvent) => {
+  useEffect(() => {
+    ensureSeedAccount();
+  }, []);
+
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      if (mode === "in") signIn(email, password);
-      else signUp(email, password, name || email.split("@")[0]);
-      window.dispatchEvent(new Event("mm-auth-change"));
+      if (mode === "in") await signIn(email, password);
+      else await signUp(email, password, name || email.split("@")[0]);
       router.navigate({ to: "/app" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
