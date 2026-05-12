@@ -1,12 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import {
-  getSession,
-  getImportCount,
-  bumpImportCount,
-  FREE_IMPORT_LIMIT,
-  type User,
-} from "@/lib/auth";
+import { useEffect, useRef } from "react";
+import { bumpImportCount, FREE_IMPORT_LIMIT } from "@/lib/auth";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/app")({
   component: AppPage,
@@ -18,22 +13,17 @@ export const Route = createFileRoute("/app")({
 function AppPage() {
   const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [count, setCount] = useState(0);
+  const { session, profile, loading, reloadProfile } = useAuth();
 
   useEffect(() => {
-    const s = getSession();
-    if (!s) {
+    if (!loading && !session) {
       navigate({ to: "/login" });
-      return;
     }
-    setUser(s);
-    setCount(getImportCount(s.email));
-  }, [navigate]);
+  }, [loading, session, navigate]);
 
   useEffect(() => {
-    if (!user) return;
-    const onMsg = (ev: MessageEvent) => {
+    if (!session || !profile) return;
+    const onMsg = async (ev: MessageEvent) => {
       const data = ev.data;
       if (!data || data.type !== "mm:stl-import-request") return;
       const reply = (allowed: boolean) =>
@@ -41,31 +31,33 @@ function AppPage() {
           { type: "mm:stl-import-decision", id: data.id, allowed },
           "*",
         );
-      if (user.plan === "premium") {
+
+      if (profile.plan === "premium") {
         reply(true);
         return;
       }
-      const current = getImportCount(user.email);
-      if (current >= FREE_IMPORT_LIMIT) {
+      if (profile.import_count >= FREE_IMPORT_LIMIT) {
         reply(false);
         navigate({ to: "/upgrade" });
         return;
       }
-      const next = bumpImportCount(user.email);
-      setCount(next);
-      reply(true);
-      if (next >= FREE_IMPORT_LIMIT) {
-        // allow this import, then redirect on next attempt
+      try {
+        await bumpImportCount();
+        await reloadProfile();
+        reply(true);
+      } catch (err) {
+        console.error("bumpImportCount failed", err);
+        reply(false);
       }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [user, navigate]);
+  }, [session, profile, navigate, reloadProfile]);
 
-  if (!user) return null;
+  if (loading || !session || !profile) return null;
 
   const remaining =
-    user.plan === "premium" ? "∞" : Math.max(0, FREE_IMPORT_LIMIT - count);
+    profile.plan === "premium" ? "∞" : Math.max(0, FREE_IMPORT_LIMIT - profile.import_count);
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
@@ -75,9 +67,9 @@ function AppPage() {
             ← MeshMaster
           </a>
           <span className="text-muted-foreground">|</span>
-          <span className="text-muted-foreground">{user.email}</span>
+          <span className="text-muted-foreground">{profile.email}</span>
           <span className="rounded bg-primary/10 px-2 py-0.5 uppercase tracking-wider text-primary">
-            {user.plan}
+            {profile.plan}
           </span>
         </div>
         <div className="font-mono text-muted-foreground">
