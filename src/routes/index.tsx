@@ -9,13 +9,13 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MeshMaster — High-performance 3D mesh processing in C++" },
+      { title: "Discreetize — High-performance 3D mesh processing in C++" },
       {
         name: "description",
         content:
           "Heal, slice, analyze and export STL/CAD meshes at native speed. The CFD-grade mesh toolkit engineers ship with.",
       },
-      { property: "og:title", content: "MeshMaster — 3D mesh processing in C++" },
+      { property: "og:title", content: "Discreetize — 3D mesh processing in C++" },
       {
         property: "og:description",
         content: "STL healing, slicing, curvature analysis & export. Built in C++ for engineers.",
@@ -188,7 +188,7 @@ function Landing() {
               <span className="h-2.5 w-2.5 rounded-full bg-accent/70" />
               <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
               <span className="ml-3 font-display text-[11px] text-muted-foreground">
-                ~/projects · meshmaster
+                ~/projects · discreetize
               </span>
             </div>
             <TypedTerminal />
@@ -269,7 +269,7 @@ function Landing() {
                 From raw scan to simulation-ready mesh — without leaving the terminal.
               </h2>
               <p className="mt-5 text-muted-foreground">
-                MeshMaster mirrors the workflow real engineering teams run: import, repair,
+                Discreetize mirrors the workflow real engineering teams run: import, repair,
                 analyze, slice, export. Composable commands, scriptable pipelines, predictable performance.
               </p>
               <div className="mt-8">
@@ -302,7 +302,7 @@ function Landing() {
                   </span>
                   <div>
                     <div className="font-display text-sm">
-                      <span className="text-primary">$</span> meshmaster {cmd}
+                      <span className="text-primary">$</span> discreetize {cmd}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">{desc}</div>
                   </div>
@@ -352,7 +352,7 @@ function Landing() {
 
 function TypedTerminal() {
   const lines = [
-    { d: 250, text: "$ meshmaster heal turbine.stl -o fixed.stl", cls: "" },
+    { d: 250, text: "$ discreetize heal turbine.stl -o fixed.stl", cls: "" },
     { d: 600, text: "  [25%] Loading STL ... 1,284,902 faces", cls: "text-muted-foreground" },
     { d: 900, text: "  [60%] Merging duplicate verts", cls: "text-muted-foreground" },
     { d: 1200, text: "  [85%] Repairing manifold edges", cls: "text-muted-foreground" },

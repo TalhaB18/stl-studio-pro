@@ -17,7 +17,7 @@ export function SiteHeader() {
               <path d="M4 7l8 5 8-5M12 12v10" />
             </svg>
           </div>
-          <span className="font-display text-lg font-bold tracking-tight">MeshMaster</span>
+          <span className="font-display text-lg font-bold tracking-tight">Discreetize</span>
           <span className="ml-1 rounded border border-border/80 px-1.5 py-0.5 font-display text-[10px] text-muted-foreground">v2.0</span>
         </Link>
 

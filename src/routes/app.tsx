@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 export const Route = createFileRoute("/app")({
   component: AppPage,
   head: () => ({
-    meta: [{ title: "MeshMaster · 3D Workbench" }],
+    meta: [{ title: "Discreetize · CFD Mesh Workbench" }],
   }),
 });
 
@@ -64,7 +64,7 @@ function AppPage() {
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2 text-xs">
         <div className="flex items-center gap-3 font-mono">
           <a href="/" className="text-primary hover:underline">
-            ← MeshMaster
+            ← Discreetize
           </a>
           <span className="text-muted-foreground">|</span>
           <span className="text-muted-foreground">{profile.email}</span>

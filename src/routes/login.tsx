@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Sign in — MeshMaster" },
-      { name: "description", content: "Sign in to your MeshMaster account." },
+      { title: "Sign in — Discreetize" },
+      { name: "description", content: "Sign in to your Discreetize account." },
     ],
   }),
   component: LoginPage,
@@ -57,13 +57,13 @@ function LoginPage() {
                 <path d="M4 7l8 5 8-5M12 12v10" />
               </svg>
             </div>
-            <span className="font-display text-lg font-bold">MeshMaster</span>
+            <span className="font-display text-lg font-bold">Discreetize</span>
           </Link>
 
           <div>
             <blockquote className="font-display text-2xl leading-snug">
               "We replaced a 40-minute Python pipeline with{" "}
-              <span className="text-gradient">a 12-second meshmaster</span> command.
+              <span className="text-gradient">a 12-second discreetize</span> command.
               That's it. That's the review."
             </blockquote>
             <div className="mt-6 flex items-center gap-3">
@@ -78,7 +78,7 @@ function LoginPage() {
           </div>
 
           <div className="font-display text-[11px] text-muted-foreground">
-            © 2026 MeshMaster Labs · Built for engineers
+            © 2026 Discreetize · Built for engineers
           </div>
         </div>
 
@@ -91,7 +91,7 @@ function LoginPage() {
                   <path d="M12 2 4 7v10l8 5 8-5V7z" />
                 </svg>
               </div>
-              <span className="font-display text-lg font-bold">MeshMaster</span>
+              <span className="font-display text-lg font-bold">Discreetize</span>
             </Link>
 
             <h1 className="font-display text-3xl font-bold">

@@ -9,8 +9,8 @@ import { useAuth } from "@/hooks/use-auth";
 export const Route = createFileRoute("/upgrade")({
   head: () => ({
     meta: [
-      { title: "Pricing — MeshMaster" },
-      { name: "description", content: "Free and Premium plans for MeshMaster." },
+      { title: "Pricing — Discreetize" },
+      { name: "description", content: "Free and Premium plans for Discreetize." },
     ],
   }),
   component: Upgrade,

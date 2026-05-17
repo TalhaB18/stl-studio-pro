@@ -72,10 +72,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "MeshMaster — 3D mesh processing in C++" },
+      { title: "Discreetize — 3D mesh processing in C++" },
       { name: "description", content: "Heal, slice, analyze and export STL/CAD meshes at native speed." },
-      { name: "author", content: "MeshMaster Labs" },
-      { property: "og:title", content: "MeshMaster — 3D mesh processing in C++" },
+      { name: "author", content: "Discreetize" },
+      { property: "og:title", content: "Discreetize — 3D mesh processing in C++" },
       { property: "og:description", content: "STL healing, slicing, curvature analysis & multi-format export — built in C++." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
